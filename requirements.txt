@@ -1,0 +1,12 @@
+datasets
+pandas
+pyarrow
+fasttext-wheel
+langdetect
+sentencepiece
+tqdm
+matplotlib
+seaborn
+scikit-learn
+transformers
+accelerate

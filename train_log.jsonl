@@ -1,2 +1,7 @@
-{"epoch": 1, "step": 7215, "train_loss": 6.07375, "val_loss": 4.35152}
-{"epoch": 2, "step": 14430, "train_loss": 4.07466, "val_loss": 3.63574}
+{"epoch": 3, "step": 28859, "train_loss": 4.01822, "val_loss": 3.6668}
+{"epoch": 4, "step": 43288, "train_loss": 3.7022, "val_loss": 3.49005}
+{"epoch": 5, "step": 57717, "train_loss": 3.53209, "val_loss": 3.37766}
+{"epoch": 6, "step": 72146, "train_loss": 3.40138, "val_loss": 3.28868}
+{"epoch": 7, "step": 86575, "train_loss": 3.28659, "val_loss": 3.21021}
+{"epoch": 8, "step": 101004, "train_loss": 3.18142, "val_loss": 3.14326}
+{"epoch": 9, "step": 115433, "train_loss": 3.0901, "val_loss": 3.09729}

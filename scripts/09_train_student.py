@@ -71,7 +71,7 @@ ROOT           = Path(__file__).resolve().parent.parent
 TRAIN_FILE     = ROOT / "data/processed/bilingual_train.jsonl"
 VALID_FILE     = ROOT / "data/processed/bilingual_valid.jsonl"
 TOKENIZER_PATH = ROOT / "tokenizer/spm_32k.model"
-CKPT_DIR       = ROOT / "checkpoints"
+CKPT_DIR       = ROOT / "checkpoints_distill"
 LOG_FILE       = ROOT / "train_log.jsonl"
 
 
@@ -141,29 +141,41 @@ def set_lr(optimizer: AdamW, lr: float):
 
 class LabelSmoothedCE(nn.Module):
     """
-    Cross-entropy with label smoothing and padding-index ignore.
-    More numerically stable than PyTorch's built-in when smoothing > 0.
+    Cross-entropy with label smoothing, padding-index ignore,
+    and an optional EOS weight boost so the model learns to stop.
     """
 
-    def __init__(self, vocab_size: int, pad_id: int, smoothing: float = 0.1):
+    def __init__(self, vocab_size: int, pad_id: int,
+                 smoothing: float = 0.1,
+                 eos_id: int | None = None,
+                 eos_weight: float = 2.0):
         super().__init__()
         self.pad_id    = pad_id
         self.smoothing = smoothing
         self.vocab     = vocab_size
+        self.eos_id    = eos_id
+        self.eos_weight = eos_weight   # multiply EOS loss by this factor
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         # logits: (N, V)   targets: (N,)
         log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
 
-        # Smooth target distribution: (1-ε) on the correct class, ε/V elsewhere
         with torch.no_grad():
             smooth = torch.full_like(log_probs, self.smoothing / (self.vocab - 1))
             smooth.scatter_(1, targets.unsqueeze(1), 1.0 - self.smoothing)
-            smooth[:, self.pad_id] = 0.0            # never reward predicting pad
+            smooth[:, self.pad_id] = 0.0
             mask = (targets == self.pad_id)
-            smooth[mask] = 0.0                      # ignore pad positions entirely
+            smooth[mask] = 0.0
 
         loss = -(smooth * log_probs).sum(dim=-1)    # (N,)
+
+        # Upweight EOS positions so the model learns to stop reliably.
+        # EOS appears ~once per sentence vs many content tokens, so without
+        # this boost its gradient is drowned out.
+        if self.eos_id is not None:
+            eos_mask = (targets == self.eos_id)
+            loss = torch.where(eos_mask, loss * self.eos_weight, loss)
+
         non_pad = (~mask).sum()
         return loss.sum() / non_pad.clamp(min=1)
 
@@ -172,7 +184,7 @@ class LabelSmoothedCE(nn.Module):
 # COLLATE  —  builds padding masks alongside padded tensors
 # ============================================================
 
-def make_collate(pad_id: int, bos_id: int, max_len: int):
+def make_collate(pad_id: int, bos_id: int, eos_id: int, max_len: int):
     def collate(batch):
         src_seqs, dec_in_seqs, label_seqs = [], [], []
 
@@ -181,10 +193,18 @@ def make_collate(pad_id: int, bos_id: int, max_len: int):
             tgt = b["tgt"].tolist()
             if not src or not tgt:
                 continue
+
             src_seqs.append(src[:max_len])
-            # decoder input = [BOS] + tgt[:-1]  (teacher forcing, right-shifted)
-            dec_in_seqs.append([bos_id] + tgt[:-1][:max_len - 1])
-            label_seqs.append(tgt[:max_len])
+
+            # Truncate to max_len-1 then always append EOS, so the model
+            # is always trained to predict EOS at the final position even
+            # when the sentence was truncated.
+            tgt_truncated = tgt[:max_len - 1]
+            tgt_with_eos  = tgt_truncated + [eos_id]
+
+            # Decoder input: [BOS] + tgt_with_eos[:-1]  (right-shifted)
+            dec_in_seqs.append([bos_id] + tgt_with_eos[:-1])
+            label_seqs.append(tgt_with_eos)
 
         if not src_seqs:
             return None
@@ -195,20 +215,19 @@ def make_collate(pad_id: int, bos_id: int, max_len: int):
                 [s + [pad_id] * (max_l - len(s)) for s in seqs],
                 dtype=torch.long,
             )
-            # mask: True = padding position (convention used by nn.MultiheadAttention)
             mask = padded == pad_id
             return padded, mask
 
-        src_ids,    src_mask    = pad_batch(src_seqs)
-        dec_in_ids, tgt_mask    = pad_batch(dec_in_seqs)
-        labels,     _           = pad_batch(label_seqs)
+        src_ids,    src_mask = pad_batch(src_seqs)
+        dec_in_ids, tgt_mask = pad_batch(dec_in_seqs)
+        labels,     _        = pad_batch(label_seqs)
 
         return {
-            "input_ids":          src_ids,
+            "input_ids":            src_ids,
             "src_key_padding_mask": src_mask,
-            "decoder_input_ids":  dec_in_ids,
+            "decoder_input_ids":    dec_in_ids,
             "tgt_key_padding_mask": tgt_mask,
-            "labels":             labels,
+            "labels":               labels,
         }
 
     return collate
@@ -469,7 +488,18 @@ def save_checkpoint(path: Path, model_raw, optimizer, scaler, epoch, global_step
 
 def load_checkpoint(path: Path, model_raw, optimizer, scaler, device):
     ckpt = torch.load(path / "checkpoint.pt", map_location=device)
-    model_raw.load_state_dict(ckpt["model"])
+    sd   = ckpt["model"]
+
+    # Normalise to plain keys first
+    if any(k.startswith("_orig_mod.") for k in sd):
+        sd = {k.replace("_orig_mod.", "", 1): v for k, v in sd.items()}
+
+    # Re-add prefix if the target compiled model expects it
+    model_keys = set(dict(model_raw.named_parameters()).keys())
+    if any(k.startswith("_orig_mod.") for k in model_keys):
+        sd = {f"_orig_mod.{k}": v for k, v in sd.items()}
+
+    model_raw.load_state_dict(sd)
     optimizer.load_state_dict(ckpt["optimizer"])
     scaler.load_state_dict(ckpt["scaler"])
     return ckpt["epoch"], ckpt["global_step"], ckpt["val_loss"]
@@ -553,7 +583,7 @@ def main():
     dataset = raw.map(preprocess, remove_columns=raw["train"].column_names)
     dataset.set_format(type="torch")
 
-    collate_fn    = make_collate(cfg["pad_id"], cfg["bos_id"], cfg["max_len_tokens"])
+    collate_fn    = make_collate(cfg["pad_id"], cfg["bos_id"], cfg["eos_id"], cfg["max_len_tokens"])
     train_sampler = DistributedSampler(dataset["train"], shuffle=True)  if world > 1 else None
     valid_sampler = DistributedSampler(dataset["valid"], shuffle=False) if world > 1 else None
 
@@ -605,7 +635,13 @@ def main():
         print(f"Parameters: {n_params:,}")
 
     # ── loss + optimiser ────────────────────────────────────
-    loss_fn = LabelSmoothedCE(vocab_size, cfg["pad_id"], cfg["label_smoothing"]).to(device)
+    loss_fn = LabelSmoothedCE(
+        vocab_size  = vocab_size,
+        pad_id      = cfg["pad_id"],
+        smoothing   = cfg["label_smoothing"],
+        eos_id      = cfg["eos_id"],
+        eos_weight  = 2.0,
+    ).to(device)
 
     optimizer = AdamW(
         model.parameters(),
@@ -744,8 +780,8 @@ def main():
 
 
 if __name__ == "__main__":
-    # Fresh start, single GPU:    python 09_train_student.py
-    # Fresh start, dual GPU:      torchrun --nproc_per_node=2 09_train_student.py
-    # Resume + 3 more epochs:     python 09_train_student.py --extra-epochs 3
-    # Resume + 3 more, dual GPU:  torchrun --nproc_per_node=2 09_train_student.py --extra-epochs 3
+    # Fresh start, single GPU:    python train.py
+    # Fresh start, dual GPU:      torchrun --nproc_per_node=2 train.py
+    # Resume + 3 more epochs:     python train.py --extra-epochs 3
+    # Resume + 3 more, dual GPU:  torchrun --nproc_per_node=2 train.py --extra-epochs 3
     main()

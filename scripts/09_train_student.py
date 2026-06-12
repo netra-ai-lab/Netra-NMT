@@ -71,8 +71,16 @@ ROOT           = Path(__file__).resolve().parent.parent
 TRAIN_FILE     = ROOT / "data/processed/bilingual_train.jsonl"
 VALID_FILE     = ROOT / "data/processed/bilingual_valid.jsonl"
 TOKENIZER_PATH = ROOT / "tokenizer/spm_32k.model"
-CKPT_DIR       = ROOT / "checkpoints_distill"
-LOG_FILE       = ROOT / "train_log.jsonl"
+
+# Output directory for THIS run's checkpoints — kept separate from
+# checkpoints_distill/ so the two training histories never collide.
+CKPT_DIR       = ROOT / "checkpoints_human_finetune"
+LOG_FILE       = ROOT / "train_log_human_finetune.jsonl"
+
+# Weights-only initialisation source. Used ONLY when CKPT_DIR is empty
+# (i.e. the first run of this fine-tuning phase). Ignored once
+# CKPT_DIR has its own checkpoints to resume from.
+BASE_CKPT      = ROOT / "checkpoints_distill/best/checkpoint.pt"
 
 
 # ============================================================
@@ -94,9 +102,13 @@ CFG = dict(
     batch_size       = 32,    # per GPU
     grad_accum_steps = 2,     # effective batch = batch_size * world * grad_accum
     epochs           = 10,
-    warmup_steps     = 4_000,
-    peak_lr          = 3e-4,
-    min_lr           = 1e-5,
+
+    # ── LR schedule — tuned for FINE-TUNING from an already-trained model ──
+    # peak_lr is much lower than the 3e-4 used for pretraining from scratch.
+    # warmup is shorter since the model already has good gradient estimates.
+    warmup_steps     = 500,
+    peak_lr          = 2e-5,
+    min_lr           = 1e-6,
     weight_decay     = 0.01,
     grad_clip        = 1.0,
     label_smoothing  = 0.1,
@@ -112,7 +124,14 @@ CFG = dict(
     compile_model      = True,   # torch.compile — set False if PyTorch < 2.0
     log_every          = 50,     # steps
     sample_every_epoch = True,   # print translation samples after each epoch
-    n_samples          = 10,      # how many validation sentences to translate
+    n_samples          = 10,     # how many validation sentences to translate
+
+    # ── warm restart ──────────────────────────────────────────
+    # Set True to reset global_step/optimizer when first switching from
+    # distillation weights to human-data fine-tuning. After the first
+    # successful run on this dataset, set to False so further
+    # --extra-epochs calls continue the schedule normally.
+    reset_schedule     = True,
 )
 
 
@@ -511,10 +530,10 @@ def find_latest_checkpoint(ckpt_dir: Path) -> Path | None:
     the highest N that actually contains a checkpoint.pt file.
     Falls back to None if nothing is found.
     """
+    if not ckpt_dir.exists():
+        return None
     candidates = []
     for p in ckpt_dir.iterdir():
-        if not ckpt_dir.exists():
-            return None
         if p.is_dir() and p.name.startswith("epoch_"):
             try:
                 n = int(p.name.split("_")[1])
@@ -526,6 +545,34 @@ def find_latest_checkpoint(ckpt_dir: Path) -> Path | None:
         return None
     candidates.sort(key=lambda x: x[0])
     return candidates[-1][1]   # path with the highest epoch number
+
+
+def load_weights_only(path: Path, model_raw, device):
+    """
+    Load just model weights from another checkpoint (e.g. distillation best)
+    — no optimizer/scaler/step state. Used to initialise a new fine-tuning
+    phase on a different dataset, where Adam momentum and the LR schedule
+    should both start fresh.
+    """
+    ckpt = torch.load(path, map_location=device)
+    sd   = ckpt.get("model", ckpt)
+
+    if any(k.startswith("_orig_mod.") for k in sd):
+        sd = {k.replace("_orig_mod.", "", 1): v for k, v in sd.items()}
+
+    model_keys = set(dict(model_raw.named_parameters()).keys())
+    if any(k.startswith("_orig_mod.") for k in model_keys):
+        sd = {f"_orig_mod.{k}": v for k, v in sd.items()}
+
+    missing, unexpected = model_raw.load_state_dict(sd, strict=False)
+    missing    = [k for k in missing    if "lm_head" not in k]
+    unexpected = [k for k in unexpected if "lm_head" not in k]
+    if missing:
+        print(f"  [warn] Missing keys:    {missing[:5]}{'...' if len(missing) > 5 else ''}")
+    if unexpected:
+        print(f"  [warn] Unexpected keys: {unexpected[:5]}{'...' if len(unexpected) > 5 else ''}")
+    if not missing and not unexpected:
+        print("  Weights loaded cleanly ✓")
 
 
 # ============================================================
@@ -653,24 +700,41 @@ def main():
 
     scaler = torch.amp.GradScaler("cuda")
 
-    # ── auto-resume from latest epoch checkpoint ────────────
+    # ── resume / initialise ─────────────────────────────────
     start_epoch = 0
     global_step = 0
     best_val    = float("inf")
 
     latest_ckpt = find_latest_checkpoint(CKPT_DIR)
+
     if latest_ckpt is not None:
+        # Resuming a run that already exists in CKPT_DIR
         if is_main(rank):
             print(f"Resuming from {latest_ckpt} …")
         resumed_epoch, global_step, best_val = load_checkpoint(
             latest_ckpt, unwrapped, optimizer, scaler, device
         )
         start_epoch = resumed_epoch + 1   # epoch N is done; start at N+1
+
+        if cfg.get("reset_schedule", False):
+            global_step = 0
+            best_val    = float("inf")
+            if is_main(rank):
+                print(f"  ⚡ reset_schedule=True — LR schedule and best_val reset")
+
         if is_main(rank):
             print(f"  Resumed at epoch {start_epoch}  |  global_step {global_step}  |  best_val {best_val:.4f}")
+
+    elif BASE_CKPT.exists():
+        # First run of this fine-tuning phase — load weights only,
+        # fresh optimizer/scaler/schedule
+        if is_main(rank):
+            print(f"Initialising weights from {BASE_CKPT} (fresh optimizer + schedule)")
+        load_weights_only(BASE_CKPT, unwrapped, device)
+
     else:
         if is_main(rank):
-            print("No checkpoint found — starting from scratch.")
+            print("No checkpoint found and BASE_CKPT does not exist — starting from random init.")
 
     # ── resolve total epoch target ───────────────────────────
     # --extra-epochs N  →  train for N more epochs from wherever we are now
@@ -783,5 +847,5 @@ if __name__ == "__main__":
     # Fresh start, single GPU:    python train.py
     # Fresh start, dual GPU:      torchrun --nproc_per_node=2 train.py
     # Resume + 3 more epochs:     python train.py --extra-epochs 3
-    # Resume + 3 more, dual GPU:  torchrun --nproc_per_node=2 09_train_student.py --extra-epochs 3
+    # Resume + 3 more, dual GPU:  torchrun --nproc_per_node=2 train.py --extra-epochs 3
     main()

@@ -1,0 +1,28 @@
+{
+  "checkpoint": "checkpoints_human_finetune/epoch_19/checkpoint.pt",
+  "split": "test",
+  "batch_size": 32,
+  "max_new_tokens": 120,
+  "results": [
+    {
+      "direction": "EN→KH",
+      "bleu": 44.95,
+      "bleu_tokenizer": "char",
+      "chrf": 40.82,
+      "bertscore_f1": 88.43,
+      "bertscore_model": "xlm-roberta-base",
+      "n_pairs": 1018,
+      "beam_size": 5
+    },
+    {
+      "direction": "KH→EN",
+      "bleu": 14.85,
+      "bleu_tokenizer": "13a",
+      "chrf": 43.92,
+      "bertscore_f1": 91.04,
+      "bertscore_model": "xlm-roberta-base",
+      "n_pairs": 1018,
+      "beam_size": 5
+    }
+  ]
+}

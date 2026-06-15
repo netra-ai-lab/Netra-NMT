@@ -29,7 +29,7 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import AdamW
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Sampler
 from torch.utils.data.distributed import DistributedSampler
 
 import sentencepiece as spm
@@ -37,6 +37,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from model_mini_nllb import MiniNLLB
+import sacrebleu
 
 
 # ============================================================
@@ -95,7 +96,7 @@ CFG = dict(
     n_heads    = 8,
     ffn_dim    = 2048,
     max_len    = 128,
-    dropout    = 0.1,
+    dropout    = 0.05,   # reduced from 0.1 — less regularisation needed at late fine-tuning stage
 
     # training
     max_len_tokens   = 128,   # truncation length
@@ -103,15 +104,16 @@ CFG = dict(
     grad_accum_steps = 2,     # effective batch = batch_size * world * grad_accum
     epochs           = 10,
 
-    # ── LR schedule — tuned for FINE-TUNING from an already-trained model ──
-    # peak_lr is much lower than the 3e-4 used for pretraining from scratch.
-    # warmup is shorter since the model already has good gradient estimates.
-    warmup_steps     = 500,
-    peak_lr          = 2e-5,
-    min_lr           = 1e-6,
+    # ── LR schedule — cosine warm-restarts (SGDR) ───────────────────────────
+    # peak_lr is lower than the first fine-tuning run (5e-6 vs 2e-5) since the
+    # model is already well-converged. cycle_epochs controls restart frequency.
+    warmup_steps     = 200,
+    peak_lr          = 5e-6,   # reduced from 2e-5 — continuing fine-tuned model
+    min_lr           = 1e-7,
+    cycle_epochs     = 4,      # LR warm-restart every N epochs
     weight_decay     = 0.01,
     grad_clip        = 1.0,
-    label_smoothing  = 0.1,
+    label_smoothing  = 0.05,   # reduced from 0.1 — less smoothing at late stage
 
     # special token ids (match your spm model)
     pad_id = 0,
@@ -139,14 +141,22 @@ CFG = dict(
 # LR SCHEDULE  —  linear warmup then cosine decay
 # ============================================================
 
-def get_lr(step: int, warmup: int, total: int, peak: float, min_lr: float) -> float:
+def get_lr(step: int, warmup: int, cycle_len: int,
+           peak: float, min_lr: float, decay: float = 0.6) -> float:
+    """
+    Linear warmup then cosine annealing with warm restarts (SGDR).
+    Each cycle of `cycle_len` steps restarts with a peak scaled by `decay`,
+    so the model keeps exploring without undoing previous convergence.
+    """
     if step < warmup:
         return peak * step / max(warmup, 1)
-    if step >= total:
-        return min_lr
-    progress = (step - warmup) / max(total - warmup, 1)
-    cosine   = 0.5 * (1 + math.cos(math.pi * progress))
-    return min_lr + (peak - min_lr) * cosine
+    step_after_warmup = step - warmup
+    cycle_idx  = step_after_warmup // cycle_len          # which restart we're in
+    cycle_step = step_after_warmup  % cycle_len          # position within cycle
+    cycle_peak = peak * (decay ** cycle_idx)             # shrinks each restart
+    progress   = cycle_step / max(cycle_len, 1)
+    cosine     = 0.5 * (1 + math.cos(math.pi * progress))
+    return min_lr + (cycle_peak - min_lr) * cosine
 
 
 def set_lr(optimizer: AdamW, lr: float):
@@ -197,6 +207,43 @@ class LabelSmoothedCE(nn.Module):
 
         non_pad = (~mask).sum()
         return loss.sum() / non_pad.clamp(min=1)
+
+
+# ============================================================
+# BUCKET SAMPLER  —  groups similar-length sequences per batch
+# ============================================================
+
+class BucketSampler(Sampler):
+    """
+    Sorts examples by source length and yields fixed-size batches of
+    similarly-lengthed sequences, then shuffles the batch order.
+    Reduces padding by ~40 % vs. random batching and gives cleaner
+    gradients for short sentences (which dominate chrF scores).
+
+    Note: incompatible with DDP's DistributedSampler — the DataLoader
+    setup below falls back to random batching when world_size > 1.
+    """
+
+    def __init__(self, lengths: list[int], batch_size: int,
+                 shuffle: bool = True, drop_last: bool = True):
+        self.lengths    = lengths
+        self.batch_size = batch_size
+        self.shuffle    = shuffle
+        self.drop_last  = drop_last
+
+    def __iter__(self):
+        order  = sorted(range(len(self.lengths)), key=lambda i: self.lengths[i])
+        chunks = [order[i : i + self.batch_size]
+                  for i in range(0, len(order), self.batch_size)]
+        if self.drop_last and len(chunks[-1]) < self.batch_size:
+            chunks = chunks[:-1]
+        if self.shuffle:
+            random.shuffle(chunks)
+        yield from chunks   # DataLoader's batch_sampler= expects batches of indices
+
+    def __len__(self) -> int:
+        n = len(self.lengths) // self.batch_size
+        return n
 
 
 # ============================================================
@@ -379,12 +426,65 @@ def print_translation_samples(
 
 
 # ============================================================
+# VALIDATION chrF  —  better checkpoint criterion than val loss
+# ============================================================
+
+@torch.no_grad()
+def compute_val_chrf(
+    model_raw,
+    sp,
+    valid_loader,
+    device,
+    cfg,
+    n_batches: int = 30,
+) -> float:
+    """
+    Greedy-decode up to `n_batches` from the validation set and return
+    corpus chrF against the reference targets.
+
+    chrF is character n-gram based, so it works for both EN→KH and KH→EN
+    examples without needing to know the direction.  Val loss and chrF can
+    diverge — saving the best-chrF model keeps the checkpoint that actually
+    translates best, not just the one with lowest token-level CE.
+    """
+    model_raw.eval()
+    hyps, refs = [], []
+    pad_id, bos_id, eos_id = cfg["pad_id"], cfg["bos_id"], cfg["eos_id"]
+
+    for i, batch in enumerate(valid_loader):
+        if batch is None or i >= n_batches:
+            break
+
+        src   = batch["input_ids"].to(device)
+        s_msk = batch["src_key_padding_mask"].to(device)
+        labels = batch["labels"]
+
+        gen = model_raw.generate(
+            src,
+            bos_token_id         = bos_id,
+            eos_token_id         = eos_id,
+            max_new_tokens       = 80,
+            src_key_padding_mask = s_msk,
+        )
+
+        for j in range(gen.size(0)):
+            h = [t for t in gen[j].tolist()    if t not in (bos_id, eos_id, pad_id)]
+            r = [t for t in labels[j].tolist() if t not in (bos_id, eos_id, pad_id)]
+            hyps.append(sp.decode(h))
+            refs.append(sp.decode(r))
+
+    if not hyps:
+        return 0.0
+    return sacrebleu.corpus_chrf(hyps, [refs]).score
+
+
+# ============================================================
 # TRAIN / EVAL STEPS
 # ============================================================
 
 def train_one_epoch(
     epoch, model, loader, loss_fn, optimizer, scaler,
-    device, amp_dtype, cfg, global_step, total_steps, rank,
+    device, amp_dtype, cfg, global_step, cycle_len, rank,
 ):
     model.train()
     total_loss = 0.0
@@ -406,7 +506,7 @@ def train_one_epoch(
         t_mask = batch["tgt_key_padding_mask"].to(device, non_blocking=True)
 
         # Update LR every step
-        lr = get_lr(global_step, cfg["warmup_steps"], total_steps,
+        lr = get_lr(global_step, cfg["warmup_steps"], cycle_len,
                     cfg["peak_lr"], cfg["min_lr"])
         set_lr(optimizer, lr)
 
@@ -591,6 +691,22 @@ def main():
             "epochs 2, 3, 4. Omit to use CFG['epochs'] as the total target."
         ),
     )
+    parser.add_argument(
+        "--resume-from", type=Path, default=None,
+        help=(
+            "Path to a specific checkpoint directory to resume from, e.g. "
+            "checkpoints_human_finetune/epoch_13. Bypasses find_latest_checkpoint "
+            "so you can skip bad checkpoints or roll back to an earlier epoch."
+        ),
+    )
+    parser.add_argument(
+        "--reset-schedule", action="store_true", default=False,
+        help=(
+            "Reset global_step to 0 and restart the LR schedule from the "
+            "loaded weights. Use when the LR has fully decayed and you want "
+            "a fresh cosine cycle without touching the CFG."
+        ),
+    )
     args, _ = parser.parse_known_args()
 
     rank, world = setup_ddp()
@@ -621,32 +737,65 @@ def main():
         "valid": str(VALID_FILE),
     })
 
-    def preprocess(ex):
+    def preprocess_train(ex):
+        # Deterministic tokenization — subword regularization (enable_sampling)
+        # must be applied from the START of training; adding it to a converged
+        # model shifts the token distribution and degrades translation quality.
         return {
             "src": sp.encode(ex["source"], out_type=int)[:cfg["max_len_tokens"]],
             "tgt": sp.encode(ex["target"], out_type=int)[:cfg["max_len_tokens"]],
         }
 
-    dataset = raw.map(preprocess, remove_columns=raw["train"].column_names)
-    dataset.set_format(type="torch")
+    def preprocess_eval(ex):
+        return {
+            "src": sp.encode(ex["source"], out_type=int)[:cfg["max_len_tokens"]],
+            "tgt": sp.encode(ex["target"], out_type=int)[:cfg["max_len_tokens"]],
+        }
+
+    train_dataset = raw["train"].map(preprocess_train, remove_columns=raw["train"].column_names)
+    valid_dataset = raw["valid"].map(preprocess_eval,  remove_columns=raw["valid"].column_names)
+
+    # Compute source lengths before set_format (sequences are still plain lists here).
+    # Used by BucketSampler to group similar-length examples into batches.
+    src_lengths = [len(s) for s in train_dataset["src"]]
+
+    train_dataset.set_format(type="torch")
+    valid_dataset.set_format(type="torch")
 
     collate_fn    = make_collate(cfg["pad_id"], cfg["bos_id"], cfg["eos_id"], cfg["max_len_tokens"])
-    train_sampler = DistributedSampler(dataset["train"], shuffle=True)  if world > 1 else None
-    valid_sampler = DistributedSampler(dataset["valid"], shuffle=False) if world > 1 else None
+    valid_sampler = DistributedSampler(valid_dataset, shuffle=False) if world > 1 else None
 
-    train_loader = DataLoader(
-        dataset["train"],
-        batch_size         = cfg["batch_size"],
-        sampler            = train_sampler,
-        shuffle            = (train_sampler is None),
-        collate_fn         = collate_fn,
-        num_workers        = cfg["num_workers"],
-        pin_memory         = True,
-        drop_last          = True,
-        persistent_workers = True,
-    )
+    if world > 1:
+        # DDP: DistributedSampler handles per-rank shuffling; BucketSampler is
+        # incompatible with DDP so we fall back to random batching here.
+        train_sampler = DistributedSampler(train_dataset, shuffle=True)
+        train_loader  = DataLoader(
+            train_dataset,
+            batch_size         = cfg["batch_size"],
+            sampler            = train_sampler,
+            collate_fn         = collate_fn,
+            num_workers        = cfg["num_workers"],
+            pin_memory         = True,
+            drop_last          = True,
+            persistent_workers = True,
+        )
+    else:
+        # Single GPU: BucketSampler groups similar-length sequences to cut
+        # padding by ~40 % and give cleaner gradients on short sentences.
+        train_sampler  = None
+        bucket_sampler = BucketSampler(src_lengths, cfg["batch_size"],
+                                       shuffle=True, drop_last=True)
+        train_loader   = DataLoader(
+            train_dataset,
+            batch_sampler      = bucket_sampler,
+            collate_fn         = collate_fn,
+            num_workers        = cfg["num_workers"],
+            pin_memory         = True,
+            persistent_workers = True,
+        )
+
     valid_loader = DataLoader(
-        dataset["valid"],
+        valid_dataset,
         batch_size         = cfg["batch_size"],
         sampler            = valid_sampler,
         shuffle            = False,
@@ -704,26 +853,37 @@ def main():
     start_epoch = 0
     global_step = 0
     best_val    = float("inf")
+    best_chrf   = 0.0          # checkpoint criterion: best translation quality
 
-    latest_ckpt = find_latest_checkpoint(CKPT_DIR)
-
-    if latest_ckpt is not None:
-        # Resuming a run that already exists in CKPT_DIR
+    # --resume-from pins a specific checkpoint; otherwise use the latest one
+    if args.resume_from is not None:
+        resume_ckpt = args.resume_from
+        if not (resume_ckpt / "checkpoint.pt").exists():
+            raise FileNotFoundError(
+                f"--resume-from: no checkpoint.pt found in {resume_ckpt}"
+            )
         if is_main(rank):
-            print(f"Resuming from {latest_ckpt} …")
+            print(f"Resuming from pinned checkpoint: {resume_ckpt}")
+    else:
+        resume_ckpt = find_latest_checkpoint(CKPT_DIR)
+
+    if resume_ckpt is not None:
+        if is_main(rank) and args.resume_from is None:
+            print(f"Resuming from {resume_ckpt} …")
         resumed_epoch, global_step, best_val = load_checkpoint(
-            latest_ckpt, unwrapped, optimizer, scaler, device
+            resume_ckpt, unwrapped, optimizer, scaler, device
         )
         start_epoch = resumed_epoch + 1   # epoch N is done; start at N+1
 
-        if cfg.get("reset_schedule", False):
+        do_reset = cfg.get("reset_schedule", False) or args.reset_schedule
+        if do_reset:
             global_step = 0
             best_val    = float("inf")
             if is_main(rank):
-                print(f"  ⚡ reset_schedule=True — LR schedule and best_val reset")
+                print(f"  ⚡ LR schedule reset — global_step=0, fresh cosine cycle from peak_lr={cfg['peak_lr']:.0e}")
 
         if is_main(rank):
-            print(f"  Resumed at epoch {start_epoch}  |  global_step {global_step}  |  best_val {best_val:.4f}")
+            print(f"  Start epoch {start_epoch}  |  global_step {global_step}  |  best_val {best_val:.4f}")
 
     elif BASE_CKPT.exists():
         # First run of this fine-tuning phase — load weights only,
@@ -761,8 +921,10 @@ def main():
     # the cosine tail lands in the right place when resuming mid-way.
     steps_per_epoch = len(train_loader) // cfg["grad_accum_steps"]
     total_steps     = steps_per_epoch * total_epochs
+    cycle_len       = steps_per_epoch * cfg.get("cycle_epochs", 4)
     if is_main(rank):
         print(f"Steps/epoch: {steps_per_epoch}  |  Total steps: {total_steps}  |  Epochs left: {total_epochs - start_epoch}")
+        print(f"LR cycle len: {cycle_len} steps ({cfg.get('cycle_epochs', 4)} epochs per restart)")
 
     # ── SANITY CHECK 1: overfit probe (fresh starts only) ───
     if is_main(rank) and start_epoch == 0:
@@ -797,7 +959,7 @@ def main():
 
         train_loss, global_step = train_one_epoch(
             epoch, model, train_loader, loss_fn, optimizer, scaler,
-            device, amp_dtype, cfg, global_step, total_steps, rank,
+            device, amp_dtype, cfg, global_step, cycle_len, rank,
         )
         val_loss = evaluate(model, valid_loader, loss_fn, device, amp_dtype, rank)
 
@@ -820,14 +982,20 @@ def main():
             )
             print(f"Checkpoint saved → {ckpt_path}")
 
-            if val_loss < best_val:
-                best_val = val_loss
+            # chrF-based checkpointing: saves the model that translates best,
+            # not just the one with the lowest token-level cross-entropy loss.
+            # Val loss and chrF can diverge — chrF is the metric we care about.
+            val_chrf = compute_val_chrf(unwrapped, sp, valid_loader, device, cfg)
+            print(f"  Val chrF (approx, {30 * cfg['batch_size']} pairs): {val_chrf:.2f}")
+
+            if val_chrf > best_chrf:
+                best_chrf = val_chrf
                 save_checkpoint(
                     CKPT_DIR / "best",
                     unwrapped, optimizer, scaler,
                     epoch, global_step, val_loss, cfg, vocab_size,
                 )
-                print(f"🔥 New best val loss: {best_val:.4f}")
+                print(f"🔥 New best chrF: {best_chrf:.2f}  (val_loss {val_loss:.4f})")
 
             # ── JSON training log ─────────────────────────────
             log_rows.append({

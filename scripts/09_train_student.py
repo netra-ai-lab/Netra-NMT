@@ -105,11 +105,15 @@ CFG = dict(
     # save a rolling "latest" checkpoint every N gradient steps (overrides previous)
     save_every_steps = 2000,
 
-    # ── LR schedule — cosine warm-restarts (SGDR) ───────────────────────────
+    # ── LR schedule — step-based linear warmup → cosine decay ────────────────
     warmup_steps     = 1000,
     peak_lr          = 1e-4,
     min_lr           = 1e-7,
-    cycle_epochs     = 4,      # LR warm-restart every N epochs
+    # total_steps = cosine decay horizon (steps). None → derive from epochs.
+    # max_steps   = hard stop after this many global steps. None → run full epochs.
+    # Both are normally set from the CLI (--total-steps / --max-steps).
+    total_steps      = None,
+    max_steps        = None,
     weight_decay     = 0.01,
     grad_clip        = 1.0,
     label_smoothing  = 0.05,   # reduced from 0.1 — less smoothing at late stage
@@ -140,22 +144,26 @@ CFG = dict(
 # LR SCHEDULE  —  linear warmup then cosine decay
 # ============================================================
 
-def get_lr(step: int, warmup: int, cycle_len: int,
-           peak: float, min_lr: float, decay: float = 0.6) -> float:
+def get_lr(step: int, warmup: int, total_steps: int,
+           peak: float, min_lr: float) -> float:
     """
-    Linear warmup then cosine annealing with warm restarts (SGDR).
-    Each cycle of `cycle_len` steps restarts with a peak scaled by `decay`,
-    so the model keeps exploring without undoing previous convergence.
+    Step-based schedule: linear warmup → single cosine decay to min_lr.
+
+    The schedule is a pure function of the GLOBAL step count and `total_steps`
+    (the decay horizon), so it resumes correctly from any checkpoint as long as
+    the same --total-steps is passed. After `total_steps` the LR stays pinned at
+    min_lr (the cosine progress is clamped to 1.0).
+
+    This replaces the old epoch-based SGDR warm-restart schedule: with millions
+    of pairs an "epoch" is enormous, and warm restarts caused the LR to collapse
+    toward zero when resuming with a large global_step.
     """
     if step < warmup:
         return peak * step / max(warmup, 1)
-    step_after_warmup = step - warmup
-    cycle_idx  = step_after_warmup // cycle_len          # which restart we're in
-    cycle_step = step_after_warmup  % cycle_len          # position within cycle
-    cycle_peak = peak * (decay ** cycle_idx)             # shrinks each restart
-    progress   = cycle_step / max(cycle_len, 1)
-    cosine     = 0.5 * (1 + math.cos(math.pi * progress))
-    return min_lr + (cycle_peak - min_lr) * cosine
+    progress = (step - warmup) / max(total_steps - warmup, 1)
+    progress = min(max(progress, 0.0), 1.0)             # clamp → LR floors at min_lr
+    cosine   = 0.5 * (1 + math.cos(math.pi * progress))
+    return min_lr + (peak - min_lr) * cosine
 
 
 def set_lr(optimizer: AdamW, lr: float):
@@ -483,13 +491,14 @@ def compute_val_chrf(
 
 def train_one_epoch(
     epoch, model, loader, loss_fn, optimizer, scaler,
-    device, amp_dtype, cfg, global_step, cycle_len, rank,
+    device, amp_dtype, cfg, global_step, total_steps, max_steps, rank,
     save_fn=None, log_fn=None,
 ):
     model.train()
     total_loss = 0.0
     n_steps    = 0
     t0         = time.perf_counter()
+    stopped    = False   # set True if the --max-steps budget is reached mid-epoch
 
     pbar = tqdm(loader, desc=f"Epoch {epoch+1}", disable=not is_main(rank))
 
@@ -505,8 +514,8 @@ def train_one_epoch(
         s_mask = batch["src_key_padding_mask"].to(device, non_blocking=True)
         t_mask = batch["tgt_key_padding_mask"].to(device, non_blocking=True)
 
-        # Update LR every step
-        lr = get_lr(global_step, cfg["warmup_steps"], cycle_len,
+        # Update LR every step (step-based: warmup → cosine to min_lr)
+        lr = get_lr(global_step, cfg["warmup_steps"], total_steps,
                     cfg["peak_lr"], cfg["min_lr"])
         set_lr(optimizer, lr)
 
@@ -557,11 +566,20 @@ def train_one_epoch(
             if is_main(rank) and save_fn and save_every > 0 and global_step % save_every == 0:
                 save_fn(global_step)
 
+            # Step-budget stop: break mid-epoch once we hit --max-steps.
+            if max_steps is not None and global_step >= max_steps:
+                if is_main(rank):
+                    print(f"  Reached --max-steps ({max_steps}); stopping mid-epoch.")
+                stopped = True
+
         total_loss += loss.item() * cfg["grad_accum_steps"]
         n_steps    += 1
         pbar.set_postfix(loss=f"{loss.item() * cfg['grad_accum_steps']:.4f}", lr=f"{lr:.2e}")
 
-    return total_loss / max(n_steps, 1), global_step
+        if stopped:
+            break
+
+    return total_loss / max(n_steps, 1), global_step, stopped
 
 
 @torch.no_grad()
@@ -727,8 +745,28 @@ def main():
         help="Override CFG peak_lr (e.g. 1e-5 for fine-tuning).",
     )
     parser.add_argument(
-        "--cycle-epochs", type=int, default=None,
-        help="Override CFG cycle_epochs — number of epochs per LR warm-restart (e.g. 1 for fine-tuning).",
+        "--min-lr", type=float, default=None,
+        help="Override CFG min_lr — the floor the cosine decays to (default 1e-7).",
+    )
+    parser.add_argument(
+        "--warmup-steps", type=int, default=None,
+        help="Override CFG warmup_steps — linear warmup length in optimizer steps.",
+    )
+    parser.add_argument(
+        "--total-steps", type=int, default=None,
+        help=(
+            "Cosine decay horizon in optimizer steps (LR reaches min_lr here). "
+            "Pass the SAME value when resuming so the LR continues from where it "
+            "left off. If omitted, falls back to --max-steps, then to epoch-based."
+        ),
+    )
+    parser.add_argument(
+        "--max-steps", type=int, default=None,
+        help=(
+            "Hard stop after this many GLOBAL optimizer steps (counts across "
+            "resumes). Lets you train by step budget instead of waiting for a "
+            "full epoch. If --total-steps is omitted, it defaults to this value."
+        ),
     )
     parser.add_argument(
         "--ckpt-dir", type=Path, default=None,
@@ -751,13 +789,19 @@ def main():
     log_file   = args.log_file  if args.log_file  else LOG_FILE
     if args.peak_lr is not None:
         cfg["peak_lr"] = args.peak_lr
-    if args.cycle_epochs is not None:
-        cfg["cycle_epochs"] = args.cycle_epochs
+    if args.min_lr is not None:
+        cfg["min_lr"] = args.min_lr
+    if args.warmup_steps is not None:
+        cfg["warmup_steps"] = args.warmup_steps
+    if args.total_steps is not None:
+        cfg["total_steps"] = args.total_steps
+    if args.max_steps is not None:
+        cfg["max_steps"] = args.max_steps
     if is_main(rank):
         print(f"Train file : {train_file}")
         print(f"Valid file : {valid_file}")
         print(f"Ckpt dir   : {ckpt_dir}")
-        print(f"Peak LR   : {cfg['peak_lr']:.2e}")
+        print(f"Peak LR   : {cfg['peak_lr']:.2e}  |  Min LR: {cfg['min_lr']:.2e}  |  Warmup: {cfg['warmup_steps']}")
 
     # ── reproducibility ─────────────────────────────────────
     random.seed(cfg["seed"] + rank)
@@ -945,10 +989,23 @@ def main():
         if is_main(rank):
             print("No checkpoint found and BASE_CKPT does not exist — starting from random init.")
 
-    # ── resolve total epoch target ───────────────────────────
-    # --extra-epochs N  →  train for N more epochs from wherever we are now
-    # no flag           →  train until CFG["epochs"] total (original behaviour)
-    if args.extra_epochs is not None:
+    # ── steps/epoch (needed for both the schedule and step-based stopping) ──
+    steps_per_epoch = len(train_loader) // cfg["grad_accum_steps"]
+    max_steps       = cfg.get("max_steps")   # hard stop in global steps, or None
+
+    # ── resolve how many epochs to iterate ───────────────────
+    # --max-steps N   →  step-budget mode: schedule enough epochs to reach N,
+    #                    the training loop then breaks exactly at global_step N.
+    # --extra-epochs N →  train N more epochs from wherever we are now.
+    # no flag          →  train until CFG["epochs"] total (original behaviour).
+    if max_steps is not None:
+        remaining    = max(max_steps - global_step, 0)
+        need_epochs  = math.ceil(remaining / max(steps_per_epoch, 1))
+        total_epochs = start_epoch + max(need_epochs, 1)
+        if is_main(rank):
+            print(f"--max-steps {max_steps}  →  stop at global_step {max_steps} "
+                  f"(scheduling up to epoch {total_epochs})")
+    elif args.extra_epochs is not None:
         total_epochs = start_epoch + args.extra_epochs
         if is_main(rank):
             print(f"--extra-epochs {args.extra_epochs}  →  will train epochs {start_epoch+1} … {total_epochs}")
@@ -958,22 +1015,35 @@ def main():
             print(
                 f"Already completed {start_epoch} epoch(s) which meets the "
                 f"CFG target of {total_epochs}. "
-                f"Use --extra-epochs N to train more."
+                f"Use --extra-epochs N or --max-steps N to train more."
             )
 
-    if start_epoch >= total_epochs:
+    already_done = (start_epoch >= total_epochs) or \
+                   (max_steps is not None and global_step >= max_steps)
+    if already_done:
+        if is_main(rank):
+            print("Nothing to train (target already reached). "
+                  "Increase --max-steps / --extra-epochs to continue.")
         cleanup_ddp(world)
         return
 
-    # ── recalculate schedule over the FULL intended run ─────
-    # total_steps covers the entire run (including already-done epochs) so
-    # the cosine tail lands in the right place when resuming mid-way.
-    steps_per_epoch = len(train_loader) // cfg["grad_accum_steps"]
-    total_steps     = steps_per_epoch * total_epochs
-    cycle_len       = steps_per_epoch * cfg.get("cycle_epochs", 4)
+    # ── LR decay horizon (steps) ─────────────────────────────
+    # Pure function of global_step, so the LR resumes correctly from any
+    # checkpoint as long as the same horizon is passed.
+    # Priority: explicit --total-steps  >  --max-steps  >  epoch-based fallback.
+    if cfg.get("total_steps"):
+        total_steps = cfg["total_steps"]
+    elif max_steps is not None:
+        total_steps = max_steps
+    else:
+        total_steps = steps_per_epoch * total_epochs
+
     if is_main(rank):
-        print(f"Steps/epoch: {steps_per_epoch}  |  Total steps: {total_steps}  |  Epochs left: {total_epochs - start_epoch}")
-        print(f"LR cycle len: {cycle_len} steps ({cfg.get('cycle_epochs', 4)} epochs per restart)")
+        resumed_lr = get_lr(global_step, cfg["warmup_steps"], total_steps,
+                            cfg["peak_lr"], cfg["min_lr"])
+        print(f"Steps/epoch: {steps_per_epoch}  |  LR decay horizon (total_steps): {total_steps}")
+        print(f"Schedule: warmup {cfg['warmup_steps']} → cosine to min_lr {cfg['min_lr']:.1e}  "
+              f"|  resuming at step {global_step} (lr {resumed_lr:.2e})")
 
     # ── SANITY CHECK 1: overfit probe (fresh starts only) ───
     if is_main(rank) and start_epoch == 0:
@@ -1011,9 +1081,9 @@ def main():
             with open(log_file, "a") as f:
                 f.write(json.dumps(row) + "\n")
 
-        train_loss, global_step = train_one_epoch(
+        train_loss, global_step, stopped = train_one_epoch(
             epoch, model, train_loader, loss_fn, optimizer, scaler,
-            device, amp_dtype, cfg, global_step, cycle_len, rank,
+            device, amp_dtype, cfg, global_step, total_steps, max_steps, rank,
             save_fn=_step_save if is_main(rank) else None,
             log_fn=_step_log  if is_main(rank) else None,
         )
@@ -1063,13 +1133,27 @@ def main():
                     "val_chrf":   round(val_chrf,   4),
                 }) + "\n")
 
+        # Stop the whole run once the --max-steps budget is hit (after the
+        # validation + checkpoint above has captured the final state).
+        if stopped:
+            if is_main(rank):
+                print(f"\nReached step budget (global_step={global_step}). Done.")
+            break
+
     cleanup_ddp(world)
 
 
 if __name__ == "__main__":
-    # Fresh start, single GPU:    python train.py
-    # Fresh start, dual GPU:      torchrun --nproc_per_node=2 train.py
-    # Resume + 3 more epochs:     python train.py --extra-epochs 3
-    # Resume + 3 more, dual GPU:  torchrun --nproc_per_node=2 train.py --extra-epochs 3
-    # torchrun --nproc_per_node=2 scripts/09_train_student.py --resume-from checkpoints/step_latest --reset-schedule --extra-epochs 1
+    # The LR schedule is STEP-BASED (linear warmup → cosine decay to min_lr over
+    # --total-steps). Pass the same --total-steps on resume so the LR continues
+    # smoothly. --max-steps stops the run by step budget (no need to finish an epoch).
+    #
+    # Fresh start (step budget):
+    #   python scripts/09_train_student.py --total-steps 120000 --max-steps 120000 --peak-lr 1e-4
+    # Resume the latest checkpoint and train 40k more steps on the SAME schedule:
+    #   python scripts/09_train_student.py --total-steps 120000 --max-steps 80000
+    # Resume a specific checkpoint with a fresh schedule (e.g. human-data finetune):
+    #   python scripts/09_train_student.py --resume-from checkpoints/best --reset-schedule \
+    #       --peak-lr 2e-5 --warmup-steps 500 --total-steps 20000 --max-steps 20000
+    # Dual GPU: prefix any of the above with `torchrun --nproc_per_node=2`.
     main()

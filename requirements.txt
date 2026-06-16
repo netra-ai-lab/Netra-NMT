@@ -12,3 +12,5 @@ transformers
 accelerate
 sacrebleu>=2.3.1
 bert-score>=0.3.13
+unbabel-comet>=2.2.0
+khmercut

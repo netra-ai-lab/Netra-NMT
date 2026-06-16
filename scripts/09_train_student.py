@@ -753,19 +753,27 @@ def main():
         help="Override CFG warmup_steps — linear warmup length in optimizer steps.",
     )
     parser.add_argument(
-        "--total-steps", type=int, default=None,
+        "--train-steps", type=int, default=None,
         help=(
-            "Cosine decay horizon in optimizer steps (LR reaches min_lr here). "
-            "Pass the SAME value when resuming so the LR continues from where it "
-            "left off. If omitted, falls back to --max-steps, then to epoch-based."
+            "Simplest option: train this many MORE optimizer steps from wherever "
+            "you resume, then stop. The LR automatically decays to min_lr over "
+            "exactly these steps. E.g. resume + '--train-steps 40000'."
         ),
     )
     parser.add_argument(
         "--max-steps", type=int, default=None,
         help=(
-            "Hard stop after this many GLOBAL optimizer steps (counts across "
-            "resumes). Lets you train by step budget instead of waiting for a "
-            "full epoch. If --total-steps is omitted, it defaults to this value."
+            "Absolute alternative to --train-steps: stop when global_step reaches "
+            "this value (counts across resumes). Ignored if --train-steps is set."
+        ),
+    )
+    parser.add_argument(
+        "--total-steps", type=int, default=None,
+        help=(
+            "Advanced: pin the LR decay horizon (step where LR hits min_lr), "
+            "independent of where training stops. Use this to keep ONE continuous "
+            "cosine across several resume legs. If omitted, it is derived from "
+            "--train-steps / --max-steps."
         ),
     )
     parser.add_argument(
@@ -991,7 +999,16 @@ def main():
 
     # ── steps/epoch (needed for both the schedule and step-based stopping) ──
     steps_per_epoch = len(train_loader) // cfg["grad_accum_steps"]
-    max_steps       = cfg.get("max_steps")   # hard stop in global steps, or None
+
+    # ── resolve the stop point (absolute global step) ────────
+    # --train-steps N → relative: stop N steps after the resumed global_step.
+    # --max-steps   N → absolute: stop when global_step reaches N.
+    if args.train_steps is not None:
+        max_steps = global_step + args.train_steps
+        if is_main(rank):
+            print(f"--train-steps {args.train_steps}  →  train from step {global_step} to {max_steps}")
+    else:
+        max_steps = cfg.get("max_steps")   # absolute, or None
 
     # ── resolve how many epochs to iterate ───────────────────
     # --max-steps N   →  step-budget mode: schedule enough epochs to reach N,
@@ -1028,10 +1045,12 @@ def main():
         return
 
     # ── LR decay horizon (steps) ─────────────────────────────
-    # Pure function of global_step, so the LR resumes correctly from any
-    # checkpoint as long as the same horizon is passed.
-    # Priority: explicit --total-steps  >  --max-steps  >  epoch-based fallback.
-    if cfg.get("total_steps"):
+    # The schedule is ONE continuous cosine from step 0 to `total_steps`, a pure
+    # function of global_step — so it resumes smoothly as long as the SAME
+    # --total-steps is passed each leg.
+    # Priority: explicit --total-steps  >  stop point (train/max-steps)  >  epochs.
+    horizon_explicit = bool(cfg.get("total_steps"))
+    if horizon_explicit:
         total_steps = cfg["total_steps"]
     elif max_steps is not None:
         total_steps = max_steps
@@ -1044,6 +1063,10 @@ def main():
         print(f"Steps/epoch: {steps_per_epoch}  |  LR decay horizon (total_steps): {total_steps}")
         print(f"Schedule: warmup {cfg['warmup_steps']} → cosine to min_lr {cfg['min_lr']:.1e}  "
               f"|  resuming at step {global_step} (lr {resumed_lr:.2e})")
+        if not horizon_explicit and global_step > 0:
+            print("  [note] LR horizon derived from the stop point. To keep ONE "
+                  "continuous cosine across multiple resume legs, pass the SAME "
+                  "--total-steps every time.")
 
     # ── SANITY CHECK 1: overfit probe (fresh starts only) ───
     if is_main(rank) and start_epoch == 0:
@@ -1144,16 +1167,23 @@ def main():
 
 
 if __name__ == "__main__":
-    # The LR schedule is STEP-BASED (linear warmup → cosine decay to min_lr over
-    # --total-steps). Pass the same --total-steps on resume so the LR continues
-    # smoothly. --max-steps stops the run by step budget (no need to finish an epoch).
+    # The LR schedule is STEP-BASED: ONE continuous linear-warmup → cosine decay
+    # to min_lr over --total-steps. Set --total-steps once to your planned final
+    # step; the LR is a pure function of the global step, so resuming continues
+    # the same curve. Use --train-steps to chunk how far you go each session.
     #
-    # Fresh start (step budget):
-    #   python scripts/09_train_student.py --total-steps 120000 --max-steps 120000 --peak-lr 1e-4
-    # Resume the latest checkpoint and train 40k more steps on the SAME schedule:
-    #   python scripts/09_train_student.py --total-steps 120000 --max-steps 80000
-    # Resume a specific checkpoint with a fresh schedule (e.g. human-data finetune):
+    # Plan a full run to step 120k and do the first 40k now:
+    #   python scripts/09_train_student.py --total-steps 120000 --train-steps 40000
+    # Resume and do 40k more on the SAME curve (pass the same --total-steps):
+    #   python scripts/09_train_student.py --total-steps 120000 --train-steps 40000
+    # Run straight to the end of the schedule:
+    #   python scripts/09_train_student.py --total-steps 120000   # runs until step 120k
+    # Absolute stop instead of relative: use --max-steps 120000.
+    # Fresh schedule for a finetune phase (e.g. human data):
     #   python scripts/09_train_student.py --resume-from checkpoints/best --reset-schedule \
-    #       --peak-lr 2e-5 --warmup-steps 500 --total-steps 20000 --max-steps 20000
+    #       --peak-lr 2e-5 --warmup-steps 500 --total-steps 20000 --train-steps 20000 \
+    #       --train-file <human_data.jsonl> --ckpt-dir checkpoints_human_finetune \
+    #       --log-file train_log_finetune.jsonl
     # Dual GPU: prefix any of the above with `torchrun --nproc_per_node=2`.
+    # torchrun --nproc_per_node=2 scripts/09_train_student.py --total-steps 120000 --train-steps 40000
     main()

@@ -1,37 +1,29 @@
 import pandas as pd
-
 from pathlib import Path
 
-Path("../data/processed").mkdir(
-    parents=True,
-    exist_ok=True
-)
+ROOT = Path(__file__).resolve().parent.parent
+PROCESSED = ROOT / "data" / "processed"
+PROCESSED.mkdir(parents=True, exist_ok=True)
 
-df1 = pd.read_parquet(
-    "data/raw/nllb_en_km_316k/data.parquet"
-)
+sources = [
+    (ROOT / "data" / "processed" / "final.parquet",                     "existing"),
+    (ROOT / "data" / "raw" / "paracrawl_v2" / "data_clean.parquet",     "paracrawl_v2"),
+    (ROOT / "data" / "raw" / "seyha_en_kh_all" / "data_clean.parquet",  "seyha_en_kh_all"),
+]
 
-df2 = pd.read_parquet(
-    "data/raw/khmer_english_pairs_raw/data.parquet"
-)
+frames = []
+for path, label in sources:
+    df = pd.read_parquet(path)
+    # Normalise column names to [en, km]
+    if "kh" in df.columns and "km" not in df.columns:
+        df = df.rename(columns={"kh": "km"})
+    df = df[["en", "km"]].copy()
+    df["source"] = label
+    print(f"{label}: {len(df):,} rows")
+    frames.append(df)
 
-df2 = df2.rename(
-    columns={"kh": "km"}
-)
+merged = pd.concat(frames, ignore_index=True)
+print(f"\nTotal merged: {len(merged):,}")
 
-df1["source"] = "nllb_316k"
-df2["source"] = "khmer_raw_200k"
-
-merged = pd.concat(
-    [df1, df2],
-    ignore_index=True
-)
-
-print("Dataset A:", len(df1))
-print("Dataset B:", len(df2))
-print("Merged:", len(merged))
-
-merged.to_parquet(
-    "../data/processed/merged.parquet",
-    index=False
-)
+merged.to_parquet(PROCESSED / "merged.parquet", index=False)
+print(f"Saved to {PROCESSED / 'merged.parquet'}")

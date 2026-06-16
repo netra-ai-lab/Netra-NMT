@@ -75,12 +75,10 @@ TOKENIZER_PATH = ROOT / "tokenizer/spm_32k.model"
 
 # Output directory for THIS run's checkpoints — kept separate from
 # checkpoints_distill/ so the two training histories never collide.
-CKPT_DIR       = ROOT / "checkpoints_human_finetune"
-LOG_FILE       = ROOT / "train_log_human_finetune.jsonl"
+CKPT_DIR       = ROOT / "checkpoints"
+LOG_FILE       = ROOT / "train_log.jsonl"
 
-# Weights-only initialisation source. Used ONLY when CKPT_DIR is empty
-# (i.e. the first run of this fine-tuning phase). Ignored once
-# CKPT_DIR has its own checkpoints to resume from.
+# No base checkpoint — training from scratch with the expanded dataset.
 BASE_CKPT      = ROOT / "checkpoints_distill/best/checkpoint.pt"
 
 
@@ -95,20 +93,21 @@ CFG = dict(
     dec_layers = 6,
     n_heads    = 8,
     ffn_dim    = 2048,
-    max_len    = 128,
-    dropout    = 0.05,   # reduced from 0.1 — less regularisation needed at late fine-tuning stage
+    max_len    = 256,
+    dropout    = 0.1,
 
     # training
-    max_len_tokens   = 128,   # truncation length
+    max_len_tokens   = 256,   # truncation length
     batch_size       = 32,    # per GPU
     grad_accum_steps = 2,     # effective batch = batch_size * world * grad_accum
-    epochs           = 10,
+    epochs           = 1,
+
+    # save a rolling "latest" checkpoint every N gradient steps (overrides previous)
+    save_every_steps = 2000,
 
     # ── LR schedule — cosine warm-restarts (SGDR) ───────────────────────────
-    # peak_lr is lower than the first fine-tuning run (5e-6 vs 2e-5) since the
-    # model is already well-converged. cycle_epochs controls restart frequency.
-    warmup_steps     = 200,
-    peak_lr          = 5e-6,   # reduced from 2e-5 — continuing fine-tuned model
+    warmup_steps     = 1000,
+    peak_lr          = 1e-4,
     min_lr           = 1e-7,
     cycle_epochs     = 4,      # LR warm-restart every N epochs
     weight_decay     = 0.01,
@@ -485,6 +484,7 @@ def compute_val_chrf(
 def train_one_epoch(
     epoch, model, loader, loss_fn, optimizer, scaler,
     device, amp_dtype, cfg, global_step, cycle_len, rank,
+    save_fn=None, log_fn=None,
 ):
     model.train()
     total_loss = 0.0
@@ -541,14 +541,21 @@ def train_one_epoch(
                 elapsed = time.perf_counter() - t0
                 tps     = (cfg["log_every"] * cfg["batch_size"]
                            * cfg.get("world_size", 1) / elapsed)
+                step_loss = loss.item() * cfg["grad_accum_steps"]
                 print(
                     f"  step {global_step:6d}  "
-                    f"loss {loss.item() * cfg['grad_accum_steps']:.4f}  "
+                    f"loss {step_loss:.4f}  "
                     f"lr {lr:.2e}  "
                     f"grad_norm {grad_norm:.3f}  "
                     f"{tps:,.0f} tok/s"
                 )
                 t0 = time.perf_counter()
+                if log_fn:
+                    log_fn({"step": global_step, "loss": round(step_loss, 5), "lr": round(lr, 8)})
+
+            save_every = cfg.get("save_every_steps", 0)
+            if is_main(rank) and save_fn and save_every > 0 and global_step % save_every == 0:
+                save_fn(global_step)
 
         total_loss += loss.item() * cfg["grad_accum_steps"]
         n_steps    += 1
@@ -707,11 +714,50 @@ def main():
             "a fresh cosine cycle without touching the CFG."
         ),
     )
+    parser.add_argument(
+        "--train-file", type=Path, default=None,
+        help="Override the training JSONL file (default: data/processed/bilingual_train.jsonl).",
+    )
+    parser.add_argument(
+        "--valid-file", type=Path, default=None,
+        help="Override the validation JSONL file (default: data/processed/bilingual_valid.jsonl).",
+    )
+    parser.add_argument(
+        "--peak-lr", type=float, default=None,
+        help="Override CFG peak_lr (e.g. 1e-5 for fine-tuning).",
+    )
+    parser.add_argument(
+        "--cycle-epochs", type=int, default=None,
+        help="Override CFG cycle_epochs — number of epochs per LR warm-restart (e.g. 1 for fine-tuning).",
+    )
+    parser.add_argument(
+        "--ckpt-dir", type=Path, default=None,
+        help="Override the checkpoint output directory (default: checkpoints/).",
+    )
+    parser.add_argument(
+        "--log-file", type=Path, default=None,
+        help="Override the training log file (default: train_log.jsonl).",
+    )
     args, _ = parser.parse_known_args()
 
     rank, world = setup_ddp()
     cfg = dict(CFG)           # copy so we don't mutate the module-level dict
     cfg["world_size"] = world
+
+    # ── CLI overrides ────────────────────────────────────────
+    train_file = args.train_file if args.train_file else TRAIN_FILE
+    valid_file = args.valid_file if args.valid_file else VALID_FILE
+    ckpt_dir   = args.ckpt_dir  if args.ckpt_dir  else CKPT_DIR
+    log_file   = args.log_file  if args.log_file  else LOG_FILE
+    if args.peak_lr is not None:
+        cfg["peak_lr"] = args.peak_lr
+    if args.cycle_epochs is not None:
+        cfg["cycle_epochs"] = args.cycle_epochs
+    if is_main(rank):
+        print(f"Train file : {train_file}")
+        print(f"Valid file : {valid_file}")
+        print(f"Ckpt dir   : {ckpt_dir}")
+        print(f"Peak LR   : {cfg['peak_lr']:.2e}")
 
     # ── reproducibility ─────────────────────────────────────
     random.seed(cfg["seed"] + rank)
@@ -721,7 +767,7 @@ def main():
     amp_dtype = torch.bfloat16
 
     if is_main(rank):
-        CKPT_DIR.mkdir(parents=True, exist_ok=True)
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
         print(f"Device: {device}  |  World size: {world}  |  AMP dtype: {amp_dtype}")
 
     # ── tokeniser ───────────────────────────────────────────
@@ -733,8 +779,8 @@ def main():
 
     # ── dataset ─────────────────────────────────────────────
     raw = load_dataset("json", data_files={
-        "train": str(TRAIN_FILE),
-        "valid": str(VALID_FILE),
+        "train": str(train_file),
+        "valid": str(valid_file),
     })
 
     def preprocess_train(ex):
@@ -752,8 +798,11 @@ def main():
             "tgt": sp.encode(ex["target"], out_type=int)[:cfg["max_len_tokens"]],
         }
 
-    train_dataset = raw["train"].map(preprocess_train, remove_columns=raw["train"].column_names)
-    valid_dataset = raw["valid"].map(preprocess_eval,  remove_columns=raw["valid"].column_names)
+    num_proc = min(8, os.cpu_count() or 1)
+    if is_main(rank):
+        print(f"Tokenising dataset with {num_proc} workers …")
+    train_dataset = raw["train"].map(preprocess_train, remove_columns=raw["train"].column_names, num_proc=num_proc)
+    valid_dataset = raw["valid"].map(preprocess_eval,  remove_columns=raw["valid"].column_names, num_proc=num_proc)
 
     # Compute source lengths before set_format (sequences are still plain lists here).
     # Used by BucketSampler to group similar-length examples into batches.
@@ -865,7 +914,7 @@ def main():
         if is_main(rank):
             print(f"Resuming from pinned checkpoint: {resume_ckpt}")
     else:
-        resume_ckpt = find_latest_checkpoint(CKPT_DIR)
+        resume_ckpt = find_latest_checkpoint(ckpt_dir)
 
     if resume_ckpt is not None:
         if is_main(rank) and args.resume_from is None:
@@ -938,14 +987,7 @@ def main():
         overfit_one_batch(probe_model, probe_batch, loss_fn, device, amp_dtype, steps=60)
         del probe_model
 
-    # ── load existing log so we append rather than overwrite ─
-    log_rows: list[dict] = []
-    if LOG_FILE.exists():
-        with open(LOG_FILE) as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    log_rows.append(json.loads(line))
+    # Log file is appended to directly per step — no need to load existing rows.
 
     # ── training loop ───────────────────────────────────────
     for epoch in range(start_epoch, total_epochs):
@@ -957,9 +999,23 @@ def main():
             print(f"EPOCH {epoch + 1} / {total_epochs}")
             print(f"{'='*60}")
 
+        def _step_save(step):
+            save_checkpoint(
+                ckpt_dir / "step_latest",
+                unwrapped, optimizer, scaler,
+                epoch, step, float("inf"), cfg, vocab_size,
+            )
+            print(f"  [step {step}] Checkpoint saved → {ckpt_dir / 'step_latest'}")
+
+        def _step_log(row):
+            with open(log_file, "a") as f:
+                f.write(json.dumps(row) + "\n")
+
         train_loss, global_step = train_one_epoch(
             epoch, model, train_loader, loss_fn, optimizer, scaler,
             device, amp_dtype, cfg, global_step, cycle_len, rank,
+            save_fn=_step_save if is_main(rank) else None,
+            log_fn=_step_log  if is_main(rank) else None,
         )
         val_loss = evaluate(model, valid_loader, loss_fn, device, amp_dtype, rank)
 
@@ -975,7 +1031,7 @@ def main():
                 )
 
             # ── checkpoint ───────────────────────────────────
-            ckpt_path = CKPT_DIR / f"epoch_{epoch+1:02d}"
+            ckpt_path = ckpt_dir / f"epoch_{epoch+1:02d}"
             save_checkpoint(
                 ckpt_path, unwrapped, optimizer, scaler,
                 epoch, global_step, val_loss, cfg, vocab_size,
@@ -991,22 +1047,21 @@ def main():
             if val_chrf > best_chrf:
                 best_chrf = val_chrf
                 save_checkpoint(
-                    CKPT_DIR / "best",
+                    ckpt_dir / "best",
                     unwrapped, optimizer, scaler,
                     epoch, global_step, val_loss, cfg, vocab_size,
                 )
                 print(f"🔥 New best chrF: {best_chrf:.2f}  (val_loss {val_loss:.4f})")
 
-            # ── JSON training log ─────────────────────────────
-            log_rows.append({
-                "epoch":      epoch + 1,
-                "step":       global_step,
-                "train_loss": round(train_loss, 5),
-                "val_loss":   round(val_loss,   5),
-            })
-            with open(LOG_FILE, "w") as f:
-                for row in log_rows:
-                    f.write(json.dumps(row) + "\n")
+            # ── JSON training log (epoch summary) ────────────
+            with open(log_file, "a") as f:
+                f.write(json.dumps({
+                    "epoch":      epoch + 1,
+                    "step":       global_step,
+                    "train_loss": round(train_loss, 5),
+                    "val_loss":   round(val_loss,   5),
+                    "val_chrf":   round(val_chrf,   4),
+                }) + "\n")
 
     cleanup_ddp(world)
 
@@ -1016,4 +1071,5 @@ if __name__ == "__main__":
     # Fresh start, dual GPU:      torchrun --nproc_per_node=2 train.py
     # Resume + 3 more epochs:     python train.py --extra-epochs 3
     # Resume + 3 more, dual GPU:  torchrun --nproc_per_node=2 train.py --extra-epochs 3
+    # torchrun --nproc_per_node=2 scripts/09_train_student.py --resume-from checkpoints/step_latest --reset-schedule --extra-epochs 1
     main()

@@ -62,13 +62,16 @@ def parse_args() -> argparse.Namespace:
                    help="cuda | cpu (default: auto-detect).")
     p.add_argument("--limit",          type=int,   default=None,
                    help="Evaluate only the first N valid pairs (quick smoke test).")
+    p.add_argument("--dataset",         type=str,   default="alt",
+                   choices=["alt", "rinabuoy"],
+                   help="Which dataset to evaluate on: 'alt' (mutiyama/alt) or 'rinabuoy' (rinabuoy/khmer-english-parallel). (default: alt).")
     p.add_argument("--split",          type=str,   default="test",
                    choices=["train", "validation", "test"],
                    help="Dataset split to evaluate on (default: test).")
     p.add_argument("--beam-size",       type=int,   default=1,
                    help="Beam size for decoding. 1 = greedy (fast), 4-5 = beam search (better). (default: 1).")
-    p.add_argument("--output",         type=Path,  default=ROOT / "eval_results_alt.json",
-                   help="Where to write the JSON results (default: eval_results_alt.json).")
+    p.add_argument("--output",         type=Path,  default=None,
+                   help="Where to write the JSON results (default: eval_results_<dataset>.json).")
     return p.parse_args()
 
 
@@ -114,6 +117,51 @@ def load_alt_dataset(split: str) -> tuple[list[str], list[str]]:
             continue
         en_sents.append(en.strip())
         kh_sents.append(kh.strip())
+
+    print(f"  Loaded {len(en_sents):,} pairs  ({dropped} dropped — missing or null)")
+    return en_sents, kh_sents
+
+
+def load_rinabuoy_dataset(split: str) -> tuple[list[str], list[str]]:
+    """
+    Load rinabuoy/khmer-english-parallel and return (en_sentences, kh_sentences).
+    Column names are auto-detected from common candidates.
+    """
+    print(f"Loading rinabuoy/khmer-english-parallel [{split}] from HuggingFace …")
+    try:
+        ds = load_dataset("rinabuoy/khmer-english-parallel", split=split, trust_remote_code=True)
+    except ValueError:
+        # Dataset may only have a train split
+        print(f"  Split '{split}' not found — falling back to 'train'.")
+        ds = load_dataset("rinabuoy/khmer-english-parallel", split="train", trust_remote_code=True)
+
+    cols = ds.column_names
+    print(f"  Available columns: {cols}")
+
+    en_key = next((k for k in ["en", "english", "eng", "English"] if k in cols), None)
+    kh_key = next((k for k in ["km", "kh", "khmer", "khm", "Khmer"] if k in cols), None)
+
+    if en_key is None or kh_key is None:
+        raise RuntimeError(
+            f"Could not find English or Khmer column.\n"
+            f"  English candidates tried: ['en', 'english', 'eng', 'English']\n"
+            f"  Khmer candidates tried  : ['km', 'kh', 'khmer', 'khm', 'Khmer']\n"
+            f"  Columns available       : {cols}"
+        )
+
+    print(f"  English key : '{en_key}'")
+    print(f"  Khmer key   : '{kh_key}'")
+
+    en_sents, kh_sents = [], []
+    dropped = 0
+    for row in ds:
+        en = row.get(en_key)
+        kh = row.get(kh_key)
+        if not en or not kh or not str(en).strip() or not str(kh).strip():
+            dropped += 1
+            continue
+        en_sents.append(str(en).strip())
+        kh_sents.append(str(kh).strip())
 
     print(f"  Loaded {len(en_sents):,} pairs  ({dropped} dropped — missing or null)")
     return en_sents, kh_sents
@@ -293,7 +341,7 @@ def compute_metrics(
 
 # ── results display ───────────────────────────────────────────────────────────
 
-def print_results_table(results: list[dict]) -> None:
+def print_results_table(results: list[dict], dataset_label: str = "mutiyama/alt") -> None:
     col = {"dir": 12, "bleu": 8, "chrf": 8, "bert": 14, "n": 7}
     header = (
         f"{'Direction':<{col['dir']}} "
@@ -306,7 +354,7 @@ def print_results_table(results: list[dict]) -> None:
     print()
     print("═" * len(header))
     _mode = f"beam={results[0].get('beam_size', 1)}" if results and results[0].get('beam_size', 1) > 1 else "greedy"
-    print(f"  Evaluation on mutiyama/alt  ({_mode} decoding, xlm-roberta-base BERTScore)")
+    print(f"  Evaluation on {dataset_label}  ({_mode} decoding, xlm-roberta-base BERTScore)")
     print("═" * len(header))
     print(header)
     print(sep)
@@ -353,7 +401,15 @@ def main() -> None:
         )
 
     # Dataset
-    en_sents, kh_sents = load_alt_dataset(args.split)
+    if args.dataset == "rinabuoy":
+        dataset_label = "rinabuoy/khmer-english-parallel"
+        en_sents, kh_sents = load_rinabuoy_dataset(args.split)
+    else:
+        dataset_label = "mutiyama/alt"
+        en_sents, kh_sents = load_alt_dataset(args.split)
+
+    if args.output is None:
+        args.output = ROOT / f"eval_results_{args.dataset}.json"
 
     if args.limit is not None:
         en_sents = en_sents[: args.limit]
@@ -383,10 +439,11 @@ def main() -> None:
     results.append(khen_metrics)
 
     # ── Output ────────────────────────────────────────────────────────────────
-    print_results_table(results)
+    print_results_table(results, dataset_label)
 
     output_data = {
         "checkpoint":      str(args.checkpoint),
+        "dataset":         dataset_label,
         "split":           args.split,
         "batch_size":      args.batch_size,
         "max_new_tokens":  max_new_tokens,

@@ -234,3 +234,11 @@ checkpoints
 checkpoints_distill
 
 checkpoints_human_finetune
+
+checkpoints_finetune/
+
+archived/
+
+tokenizer/corpus.txt
+tokenizer/*.model
+tokenizer/*.vocab

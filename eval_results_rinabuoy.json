@@ -1,28 +1,28 @@
 {
-  "checkpoint": "checkpoints/step_latest/checkpoint.pt",
-  "dataset": "mutiyama/alt",
+  "checkpoint": "checkpoints/best/checkpoint.pt",
+  "dataset": "rinabuoy/khmer-english-parallel",
   "split": "test",
   "batch_size": 32,
   "max_new_tokens": 120,
   "results": [
     {
       "direction": "EN→KH",
-      "bleu": 47.61,
+      "bleu": 30.36,
       "bleu_tokenizer": "char",
-      "chrf": 43.51,
-      "bertscore_f1": 89.29,
+      "chrf": 27.91,
+      "bertscore_f1": 87.21,
       "bertscore_model": "xlm-roberta-base",
-      "n_pairs": 1018,
+      "n_pairs": 2508,
       "beam_size": 1
     },
     {
       "direction": "KH→EN",
-      "bleu": 14.48,
+      "bleu": 11.04,
       "bleu_tokenizer": "13a",
-      "chrf": 44.73,
-      "bertscore_f1": 90.69,
+      "chrf": 38.88,
+      "bertscore_f1": 89.31,
       "bertscore_model": "xlm-roberta-base",
-      "n_pairs": 1018,
+      "n_pairs": 2508,
       "beam_size": 1
     }
   ]

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>netra-nmt · English ↔ Khmer Translation</title>
+<style>
+  :root {
+    --blue: #1a73e8;
+    --blue-dark: #1558b0;
+    --bg: #f6f8fc;
+    --panel: #ffffff;
+    --border: #dfe1e5;
+    --text: #202124;
+    --muted: #5f6368;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Roboto, "Noto Sans Khmer", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header .logo { font-size: 22px; font-weight: 600; color: var(--blue); }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { max-width: 960px; margin: 28px auto; padding: 0 16px; }
+
+  .langbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
+    border-bottom: none;
+    padding: 10px;
+  }
+  .lang {
+    flex: 1;
+    text-align: center;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--text);
+  }
+  .swap {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--blue);
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s, transform .2s;
+  }
+  .swap:hover { background: #eef3fd; }
+  .swap:active { transform: rotate(180deg); }
+
+  .panes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 0 0 12px 12px;
+    overflow: hidden;
+  }
+  .pane { padding: 18px; min-height: 240px; position: relative; }
+  .pane:first-child { border-right: 1px solid var(--border); }
+  textarea, .output {
+    width: 100%;
+    min-height: 180px;
+    border: none;
+    outline: none;
+    resize: none;
+    font-size: 18px;
+    line-height: 1.6;
+    font-family: inherit;
+    background: transparent;
+    color: var(--text);
+  }
+  .output { white-space: pre-wrap; }
+  .output.placeholder { color: var(--muted); }
+  .pane .foot {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 10px; color: var(--muted); font-size: 13px;
+  }
+  .iconbtn {
+    border: none; background: transparent; color: var(--muted);
+    cursor: pointer; font-size: 13px; padding: 4px 6px; border-radius: 6px;
+  }
+  .iconbtn:hover { background: #f1f3f4; color: var(--text); }
+
+  .controls {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 16px;
+  }
+  .controls .left { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
+  select {
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+    font-size: 14px; background: var(--panel); color: var(--text);
+  }
+  .btn {
+    background: var(--blue); color: #fff; border: none;
+    padding: 11px 26px; border-radius: 24px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background .15s;
+  }
+  .btn:hover { background: var(--blue-dark); }
+  .btn:disabled { background: #9aa0a6; cursor: default; }
+  .spinner {
+    display: none; width: 16px; height: 16px; border: 2px solid #fff;
+    border-top-color: transparent; border-radius: 50%;
+    animation: spin .7s linear infinite; vertical-align: middle; margin-left: 6px;
+  }
+  .btn.loading .spinner { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 680px) {
+    .panes { grid-template-columns: 1fr; }
+    .pane:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <span class="logo">netra-nmt</span>
+    <span class="sub">English ↔ Khmer Neural Machine Translation</span>
+  </header>
+
+  <main>
+    <div class="langbar">
+      <div class="lang" id="srcLang">English</div>
+      <button class="swap" id="swapBtn" title="Swap languages" aria-label="Swap languages">⇄</button>
+      <div class="lang" id="tgtLang">Khmer</div>
+    </div>
+
+    <div class="panes">
+      <div class="pane">
+        <textarea id="input" placeholder="Enter text" autofocus></textarea>
+        <div class="foot">
+          <span id="counter">0 characters</span>
+          <button class="iconbtn" id="clearBtn">Clear</button>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="output placeholder" id="output">Translation</div>
+        <div class="foot">
+          <span></span>
+          <button class="iconbtn" id="copyBtn">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="left">
+        <label for="mode">Decoding</label>
+        <select id="mode">
+          <option value="greedy">Greedy (fast)</option>
+          <option value="beam">Beam search (quality)</option>
+        </select>
+      </div>
+      <button class="btn" id="translateBtn">Translate<span class="spinner"></span></button>
+    </div>
+  </main>
+
+<script>
+  const LABELS = { en: "English", km: "Khmer" };
+  let direction = "en2km";   // "en2km" | "km2en"
+
+  const $ = (id) => document.getElementById(id);
+  const input = $("input"), output = $("output");
+  const srcLang = $("srcLang"), tgtLang = $("tgtLang");
+  const translateBtn = $("translateBtn"), swapBtn = $("swapBtn");
+
+  function srcTgt() {
+    return direction === "en2km" ? ["en", "km"] : ["km", "en"];
+  }
+  function refreshLabels() {
+    const [s, t] = srcTgt();
+    srcLang.textContent = LABELS[s];
+    tgtLang.textContent = LABELS[t];
+  }
+  function setOutput(text, isPlaceholder = false) {
+    output.textContent = text;
+    output.classList.toggle("placeholder", isPlaceholder);
+  }
+
+  async function translate() {
+    const text = input.value.trim();
+    if (!text) { setOutput("Translation", true); return; }
+    translateBtn.classList.add("loading");
+    translateBtn.disabled = true;
+    try {
+      const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, direction, mode: $("mode").value }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      setOutput(data.translation || "", !data.translation);
+    } catch (e) {
+      setOutput("Error: " + e.message, true);
+    } finally {
+      translateBtn.classList.remove("loading");
+      translateBtn.disabled = false;
+    }
+  }
+
+  // Debounced auto-translate as you type.
+  let timer = null;
+  function scheduleTranslate() {
+    clearTimeout(timer);
+    $("counter").textContent = input.value.length + " characters";
+    timer = setTimeout(translate, 600);
+  }
+
+  function swap() {
+    direction = direction === "en2km" ? "km2en" : "en2km";
+    refreshLabels();
+    // Move the current translation into the input for round-trip editing.
+    const prev = output.classList.contains("placeholder") ? "" : output.textContent;
+    input.value = prev;
+    $("counter").textContent = input.value.length + " characters";
+    setOutput("Translation", true);
+    if (input.value.trim()) translate();
+  }
+
+  input.addEventListener("input", scheduleTranslate);
+  translateBtn.addEventListener("click", translate);
+  swapBtn.addEventListener("click", swap);
+  $("clearBtn").addEventListener("click", () => {
+    input.value = ""; $("counter").textContent = "0 characters";
+    setOutput("Translation", true); input.focus();
+  });
+  $("copyBtn").addEventListener("click", () => {
+    if (!output.classList.contains("placeholder")) navigator.clipboard.writeText(output.textContent);
+  });
+  $("mode").addEventListener("change", () => { if (input.value.trim()) translate(); });
+  input.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); translate(); }
+  });
+
+  refreshLabels();
+</script>
+</body>
+</html>

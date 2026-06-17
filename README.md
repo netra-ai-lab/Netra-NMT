@@ -26,7 +26,7 @@ Evaluated on the test splits of `mutiyama/alt` (ALT) and `rinabuoy/khmer-english
 
 ```bash
 pip install netra-nmt              # core (Python API + CLI)
-pip install "netra-nmt[web]"       # + Streamlit web demo
+pip install "netra-nmt[web]"       # + FastAPI web app & REST API
 ```
 
 Or from source:
@@ -82,12 +82,21 @@ netra-translate --file input.txt --output output.txt --direction en2km
 netra-translate
 ```
 
-### 3. Web demo
+### 3. Web app + REST API (FastAPI)
 
 ```bash
-netra-web                      # serves the Streamlit UI at http://127.0.0.1:8501
-netra-web --port 8600 --device cpu
+netra-web                      # serves the web UI + API at http://127.0.0.1:8000
+netra-web --port 8080 --device cpu
 netra-web --local-dir export   # load weights from a local export dir
+```
+
+A two-pane translation site (source left, output right, EN⇄KM swap button) plus a JSON API:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/translate \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "Hello, how are you?", "direction": "en2km"}'
+# {"translation": "...", "direction": "en2km"}
 ```
 
 Requires the `web` extra (`pip install "netra-nmt[web]"`).

@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-web = ["streamlit>=1.30"]
+web = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
 train = [
     "datasets",
     "pandas",
@@ -42,7 +42,7 @@ train = [
 
 [project.scripts]
 netra-translate = "netra_nmt.cli:main"
-netra-web = "netra_nmt.webapp:main"
+netra-web = "netra_nmt.server:main"
 
 [project.urls]
 Homepage = "https://github.com/NDarayut/netra-nmt"
@@ -52,3 +52,4 @@ packages = ["netra_nmt"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "netra_nmt/assets/spm_32k.model" = "netra_nmt/assets/spm_32k.model"
+"netra_nmt/static/index.html" = "netra_nmt/static/index.html"

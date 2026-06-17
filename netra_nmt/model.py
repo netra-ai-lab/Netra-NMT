@@ -1,3 +1,13 @@
+"""
+netra_nmt.model — custom encoder-decoder translation model (trained from scratch).
+
+A compact NLLB-style seq2seq transformer with:
+  * bidirectional encoder (no causal mask)
+  * autoregressive decoder with causal self-attention + cross-attention
+  * SwiGLU feed-forward blocks, Pre-LN
+  * weight tying between lm_head and the decoder embedding
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -143,7 +153,7 @@ class DecoderBlock(nn.Module):
         x = self.norm1(x)
         x, _ = self.self_attn(
             x, x, x,
-            attn_mask=tgt_mask,                       # FIX 3: causal mask applied
+            attn_mask=tgt_mask,
             key_padding_mask=tgt_key_padding_mask,
             need_weights=False,
         )
@@ -198,7 +208,7 @@ class Decoder(nn.Module):
         pos = torch.arange(T, device=input_ids.device).unsqueeze(0)  # (1, T)
         x = self.dropout(self.embed(input_ids) + self.pos_embed(pos))
 
-        # FIX 3: generate the causal mask here once and pass it to every layer
+        # Causal mask generated once and passed to every decoder layer
         causal_mask = nn.Transformer.generate_square_subsequent_mask(
             T, device=input_ids.device, dtype=x.dtype
         )
@@ -219,11 +229,11 @@ class Decoder(nn.Module):
 # Full model
 # ---------------------------------------------------------------------------
 
-class MiniNLLB(nn.Module):
+class NetraNMT(nn.Module):
     """
-    Minimal encoder-decoder translation model in the style of NLLB.
+    Minimal encoder-decoder translation model.
 
-    Fixes applied vs. the original:
+    Design notes:
       1. Encoder uses no causal mask (bidirectional attention).
       2. Weight tying: lm_head ↔ decoder.embed  (not encoder.embed).
       3. Causal mask is generated inside Decoder.forward and passed to every
@@ -256,7 +266,7 @@ class MiniNLLB(nn.Module):
 
         self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
 
-        # FIX 2: tie lm_head to the *decoder* embedding, not the encoder's
+        # Tie lm_head to the *decoder* embedding, not the encoder's
         self.lm_head.weight = self.decoder.embed.weight
 
         self._init_weights()
@@ -361,7 +371,7 @@ class MiniNLLB(nn.Module):
             x = self.decoder.norm(x)
 
             # Greedy: pick the highest-probability token at the last position
-            next_token_logits = self.lm_head(x[:, -1, :])          # (B, vocab)
+            next_token_logits = self.lm_head(x[:, -1, :])               # (B, vocab)
             next_token = next_token_logits.argmax(dim=-1, keepdim=True)  # (B, 1)
 
             decoder_input_ids = torch.cat([decoder_input_ids, next_token], dim=1)
@@ -371,38 +381,3 @@ class MiniNLLB(nn.Module):
                 break
 
         return decoder_input_ids
-
-
-# # ---------------------------------------------------------------------------
-# # Quick sanity check
-# # ---------------------------------------------------------------------------
-
-# if __name__ == "__main__":
-#     VOCAB   = 32_000
-#     B, S, T = 2, 20, 18
-
-#     model = MiniNLLB(vocab_size=VOCAB, d_model=256, enc_layers=2, dec_layers=2,
-#                      n_heads=4, ffn_dim=512, max_len=64)
-
-#     src = torch.randint(2, VOCAB, (B, S))
-#     tgt = torch.randint(2, VOCAB, (B, T))
-
-#     # Padding masks: last 3 source tokens and last 2 target tokens are padding
-#     src_pad = torch.zeros(B, S, dtype=torch.bool)
-#     src_pad[:, -3:] = True
-#     tgt_pad = torch.zeros(B, T, dtype=torch.bool)
-#     tgt_pad[:, -2:] = True
-
-#     logits = model(src, tgt, src_key_padding_mask=src_pad, tgt_key_padding_mask=tgt_pad)
-#     print(f"logits shape : {logits.shape}")   # expect (2, 18, 32000)
-
-#     # Verify weight tying
-#     assert model.lm_head.weight.data_ptr() == model.decoder.embed.weight.data_ptr(), \
-#         "lm_head and decoder embed are NOT tied!"
-#     print("Weight tying : OK (lm_head ↔ decoder.embed)")
-
-#     # Greedy generation
-#     generated = model.generate(src, bos_token_id=2, eos_token_id=3,
-#                                 max_new_tokens=10, src_key_padding_mask=src_pad)
-#     print(f"Generated    : {generated.shape}")  # expect (2, ≤11)
-#     print("All checks passed.")

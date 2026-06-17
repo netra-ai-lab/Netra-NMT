@@ -53,7 +53,7 @@ from torch.utils.data.distributed import DistributedSampler
 import sentencepiece as spm
 from tqdm import tqdm
 
-from model_mini_nllb import MiniNLLB
+from netra_nmt.model import NetraNMT as MiniNLLB
 
 
 # ============================================================

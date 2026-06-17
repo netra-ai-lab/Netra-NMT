@@ -37,7 +37,7 @@ import torch
 import torch.nn.functional as F
 import sentencepiece as spm
 
-from model_mini_nllb import MiniNLLB
+from netra_nmt.model import NetraNMT as MiniNLLB
 
 
 # ============================================================

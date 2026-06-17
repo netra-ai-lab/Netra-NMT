@@ -44,7 +44,7 @@ TOKENIZER_PATH = ROOT / "tokenizer" / "spm_32k.model"
 DEFAULT_CKPT   = ROOT / "checkpoints_human_finetune" / "epoch_13" / "checkpoint.pt"
 
 from inference import load_model, beam_search   # load_model handles _orig_mod. stripping
-from model_mini_nllb import MiniNLLB           # noqa: F401 (needed by load_model)
+from netra_nmt.model import NetraNMT as MiniNLLB
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────

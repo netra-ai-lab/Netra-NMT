@@ -36,7 +36,7 @@ import sentencepiece as spm
 from datasets import load_dataset
 from tqdm import tqdm
 
-from model_mini_nllb import MiniNLLB
+from netra_nmt.model import NetraNMT as MiniNLLB
 import sacrebleu
 
 
@@ -79,7 +79,7 @@ CKPT_DIR       = ROOT / "checkpoints"
 LOG_FILE       = ROOT / "train_log.jsonl"
 
 # No base checkpoint — training from scratch with the expanded dataset.
-BASE_CKPT      = ROOT / "checkpoints_distill/best/checkpoint.pt"
+BASE_CKPT      = ROOT / "checkpoints/best/checkpoint.pt"
 
 
 # ============================================================

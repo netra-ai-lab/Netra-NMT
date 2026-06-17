@@ -26,7 +26,7 @@ Evaluated on the test splits of `mutiyama/alt` (ALT) and `rinabuoy/khmer-english
 
 ```bash
 pip install netra-nmt              # core (Python API + CLI)
-pip install "netra-nmt[web]"       # + Gradio web demo
+pip install "netra-nmt[web]"       # + Streamlit web demo
 ```
 
 Or from source:
@@ -85,8 +85,9 @@ netra-translate
 ### 3. Web demo
 
 ```bash
-netra-web                 # serves the Gradio UI at http://127.0.0.1:7860
-netra-web --share         # public link
+netra-web                      # serves the Streamlit UI at http://127.0.0.1:8501
+netra-web --port 8600 --device cpu
+netra-web --local-dir export   # load weights from a local export dir
 ```
 
 Requires the `web` extra (`pip install "netra-nmt[web]"`).

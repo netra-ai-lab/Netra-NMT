@@ -7,9 +7,9 @@ Launch with the console script (wraps ``streamlit run``)::
     netra-web --port 8600 --device cpu
     netra-web --local-dir export      # load weights from a local export dir
 
-or directly with Streamlit::
+or directly with Streamlit (pass the installed module's file path)::
 
-    streamlit run -m netra_nmt.webapp
+    streamlit run "$(python -c 'import netra_nmt.webapp as w; print(w.__file__)')"
 
 Configuration is passed to the Streamlit script through environment variables
 (``NETRA_NMT_REPO_ID`` / ``NETRA_NMT_LOCAL_DIR`` / ``NETRA_NMT_DEVICE``).
@@ -21,8 +21,11 @@ import argparse
 import os
 import sys
 
-from .config import DEFAULT_DIRECTION, DIRECTIONS
-from .translator import NetraTranslator
+# Absolute imports: Streamlit executes this file as a top-level script (no
+# package parent), so relative imports would fail. The package is installed,
+# so `netra_nmt.*` resolves whether run as a module or by file path.
+from netra_nmt.config import DEFAULT_DIRECTION, DIRECTIONS
+from netra_nmt.translator import NetraTranslator
 
 _DIRECTION_LABELS = {
     "en2km": "English → Khmer",

@@ -4,176 +4,176 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>netra · English ↔ Khmer Translation</title>
+<link rel="icon" href="/static/netra-wordmark-orange.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Apply the saved/system theme before first paint to avoid a flash. -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem("netra-theme");
+      if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+  })();
+</script>
 <style>
   :root {
-    /* Brand palette */
-    --primary: #e75f1b;       /* Primary */
-    --gold: #f6c416;          /* Accent */
-    --brown: #4f2724;         /* Accent */
-    --ink: #191014;           /* Secondary */
-    --bg: #fdfdfd;            /* Background */
-    --panel: #ffffff;
-    /* Derived */
+    --primary: #e75f1b;
     --primary-dark: #c84e13;
-    --primary-tint: #fdeee6;
-    --border: #ece0db;
+    --gold: #f6c416;
+    --bg: #fdfdfd;
+    --panel: #ffffff;
+    --ink: #191014;
     --muted: #8a7872;
+    --border: #ece4e0;
+    color-scheme: light;
   }
+  html[data-theme="dark"] {
+    --bg: #191014;
+    --panel: #221619;
+    --ink: #fdfdfd;
+    --muted: #b89c93;
+    --border: #392c28;
+    color-scheme: dark;
+  }
+
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: "Noto Sans Khmer", system-ui, sans-serif;
+    font-family: "Noto Sans Khmer", system-ui, -apple-system, sans-serif;
+    font-size: 16px;
     background: var(--bg);
     color: var(--ink);
+    -webkit-font-smoothing: antialiased;
   }
 
   header {
-    background: var(--ink);
-    padding: 18px 28px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    border-bottom: 3px solid var(--primary);
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
   }
-  header .eye { height: 46px; width: auto; flex: none; }
-  header .titles { display: flex; flex-direction: column; gap: 6px; }
-  header .wordmark { height: 38px; width: auto; display: block; align-self: flex-start; }
-  header .sub { color: #d7c7c1; font-size: 12.5px; }
-  main { max-width: 940px; margin: 40px auto; padding: 0 20px; }
+  .brand { display: inline-flex; align-items: center; line-height: 0; }
+  /* Exactly one wordmark shows, chosen by theme. */
+  .wordmark { height: 36px; width: auto; display: none; }
+  html[data-theme="light"] .wordmark--black { display: block; }
+  html[data-theme="dark"] .wordmark--orange { display: block; }
+  .tagline { color: var(--muted); font-size: 13px; }
+  .status {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 7px;
+    color: var(--muted); font-size: 13px; white-space: nowrap;
+  }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .status.ready .dot { background: var(--primary); }
+  .status.loading .dot { background: var(--gold); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+  .themetoggle {
+    border: none; background: transparent; color: var(--muted);
+    cursor: pointer; font-size: 18px; line-height: 1; padding: 6px; border-radius: 6px;
+  }
+  .themetoggle:hover { color: var(--ink); background: var(--border); }
+
+  main { max-width: 920px; margin: 40px auto 56px; padding: 0 20px; }
 
   .langbar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-bottom: none;
-    padding: 12px 14px;
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px; color: var(--muted); font-size: 14px; font-weight: 600;
   }
-  .lang {
-    flex: 1;
-    display: flex; align-items: center; gap: 8px;
-    font-weight: 600;
-    font-size: 15px;
-    padding: 9px 14px;
-    color: var(--ink);
-    background: var(--bg);
-    border: 1px solid var(--border);
-  }
-  .lang::before {
-    content: ""; width: 9px; height: 9px; flex: none;
-  }
-  #srcLang::before { background: var(--primary); }
-  #tgtLang::before { background: var(--gold); }
-  #tgtLang { justify-content: flex-end; flex-direction: row-reverse; }
+  .lang { flex: 1; }
+  #tgtLang { text-align: right; }
   .swap {
-    border: 1px solid var(--border);
-    background: var(--panel);
-    color: var(--primary);
-    width: 40px; height: 40px; flex: none;
-    cursor: pointer;
-    font-size: 18px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--primary);
+    width: 36px; height: 36px; border-radius: 8px; cursor: pointer; font-size: 18px;
     display: flex; align-items: center; justify-content: center;
-    transition: background .15s, border-color .15s, color .15s;
   }
-  .swap:hover { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .swap:hover { border-color: var(--primary); }
 
   .panes {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: grid; grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
     background: var(--panel);
-    border: 1px solid var(--border);
-    overflow: hidden;
   }
-  .pane { padding: 22px; min-height: 240px; position: relative; }
+  .pane { padding: 22px; min-height: 260px; display: flex; flex-direction: column; }
   .pane:first-child { border-right: 1px solid var(--border); }
-  .pane .tag {
-    display: block;
-    font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
-    color: var(--muted); margin-bottom: 14px;
-  }
   textarea, .output {
-    width: 100%;
-    min-height: 180px;
-    border: none;
-    outline: none;
-    resize: none;
-    font-size: 18px;
-    line-height: 1.7;
-    font-family: inherit;
-    background: transparent;
-    color: var(--ink);
+    flex: 1; width: 100%; min-height: 180px;
+    border: none; outline: none; resize: none;
+    font-size: 19px; line-height: 1.6; font-family: inherit;
+    background: transparent; color: var(--ink);
   }
-  .pane:focus-within { box-shadow: inset 3px 0 0 var(--primary); }
+  textarea::placeholder { color: var(--muted); }
   .output { white-space: pre-wrap; }
   .output.placeholder { color: var(--muted); }
-  .pane .foot {
+  .foot {
     display: flex; align-items: center; justify-content: space-between;
-    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
-    color: var(--muted); font-size: 13px;
+    margin-top: 14px; color: var(--muted); font-size: 13px;
   }
   .iconbtn {
     border: none; background: transparent; color: var(--muted);
-    cursor: pointer; font-size: 13px; font-weight: 600; padding: 5px 8px;
-    font-family: inherit;
+    cursor: pointer; font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 6px;
   }
-  .iconbtn:hover { background: var(--primary-tint); color: var(--primary); }
+  .iconbtn:hover { color: var(--primary); background: var(--border); }
+  .iconbtn.done { color: var(--primary); }
 
   .controls {
     display: flex; align-items: center; justify-content: space-between;
-    margin-top: 18px;
+    gap: 14px; margin-top: 20px;
   }
   .controls .left { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
   select {
-    border: 1px solid var(--border); padding: 9px 12px;
-    font-size: 14px; background: var(--panel); color: var(--ink);
-    font-family: inherit; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px;
+    font: inherit; font-size: 14px; background: var(--panel); color: var(--ink); cursor: pointer;
   }
   select:focus { outline: none; border-color: var(--primary); }
   .btn {
-    background: var(--primary); color: #fff; border: none;
-    padding: 12px 30px; font-size: 15px; font-weight: 600;
-    cursor: pointer; transition: background .15s;
-    font-family: inherit;
+    background: var(--primary); color: #fff; border: none; border-radius: 8px;
+    padding: 12px 28px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
   }
   .btn:hover { background: var(--primary-dark); }
-  .btn:disabled { background: #c4b3ad; cursor: default; }
+  .btn:disabled { background: var(--muted); cursor: default; }
   .spinner {
-    display: none; width: 16px; height: 16px; border: 2px solid #fff;
-    border-top-color: transparent; border-radius: 50%;
-    animation: spin .7s linear infinite; vertical-align: middle; margin-left: 6px;
+    display: none; width: 14px; height: 14px;
+    border: 2px solid #fff; border-top-color: transparent; border-radius: 50%;
+    animation: spin .7s linear infinite; vertical-align: middle; margin-left: 8px;
   }
   .btn.loading .spinner { display: inline-block; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  @media (max-width: 680px) {
+  @media (max-width: 640px) {
+    .tagline { display: none; }
     .panes { grid-template-columns: 1fr; }
     .pane:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+    .controls { flex-direction: column; align-items: stretch; }
+    .btn { width: 100%; }
   }
 </style>
 </head>
 <body>
   <header>
-    <img class="eye" src="/static/netra-eye.png" alt="netra" />
-    <span class="titles">
-      <img class="wordmark" src="/static/netra-wordmark.png" alt="netra" />
-      <span class="sub">English ↔ Khmer · Neural Machine Translation</span>
+    <a class="brand" href="/" aria-label="netra home">
+      <img class="wordmark wordmark--black" src="/static/netra-wordmark.png" alt="netra" />
+      <img class="wordmark wordmark--orange" src="/static/netra-wordmark-orange.png" alt="netra" />
+    </a>
+    <span class="tagline">English ↔ Khmer</span>
+    <span class="status loading" id="status" aria-live="polite">
+      <span class="dot"></span><span class="label">Loading…</span>
     </span>
+    <button class="themetoggle" id="themeBtn" type="button" aria-label="Toggle theme" title="Toggle theme">☾</button>
   </header>
 
   <main>
     <div class="langbar">
-      <div class="lang" id="srcLang">English</div>
+      <span class="lang" id="srcLang">English</span>
       <button class="swap" id="swapBtn" title="Swap languages" aria-label="Swap languages">⇄</button>
-      <div class="lang" id="tgtLang">Khmer</div>
+      <span class="lang" id="tgtLang">Khmer</span>
     </div>
 
     <div class="panes">
       <div class="pane">
-        <span class="tag">source</span>
         <textarea id="input" placeholder="Enter text" autofocus></textarea>
         <div class="foot">
           <span id="counter">0 characters</span>
@@ -181,8 +181,7 @@
         </div>
       </div>
       <div class="pane">
-        <span class="tag">translation</span>
-        <div class="output placeholder" id="output">Translation</div>
+        <div class="output placeholder" id="output" aria-live="polite">Translation</div>
         <div class="foot">
           <span></span>
           <button class="iconbtn" id="copyBtn">Copy</button>
@@ -202,7 +201,6 @@
     </div>
   </main>
 
-
 <script>
   const LABELS = { en: "English", km: "Khmer" };
   let direction = "en2km";   // "en2km" | "km2en"
@@ -211,6 +209,19 @@
   const input = $("input"), output = $("output");
   const srcLang = $("srcLang"), tgtLang = $("tgtLang");
   const translateBtn = $("translateBtn"), swapBtn = $("swapBtn");
+
+  // Theme toggle (light/dark).
+  const root = document.documentElement;
+  const themeBtn = $("themeBtn");
+  function applyTheme(t) {
+    root.setAttribute("data-theme", t);
+    themeBtn.textContent = t === "dark" ? "☀" : "☾";
+  }
+  themeBtn.addEventListener("click", () => {
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    applyTheme(next);
+    try { localStorage.setItem("netra-theme", next); } catch {}
+  });
 
   function srcTgt() {
     return direction === "en2km" ? ["en", "km"] : ["km", "en"];
@@ -223,6 +234,29 @@
   function setOutput(text, isPlaceholder = false) {
     output.textContent = text;
     output.classList.toggle("placeholder", isPlaceholder);
+  }
+  function refreshBtn() {
+    if (!translateBtn.classList.contains("loading"))
+      translateBtn.disabled = !input.value.trim();
+  }
+
+  // Live model-status indicator (uses GET /api/health).
+  const statusEl = $("status");
+  function setStatus(state, device) {
+    const ready = state === "ok";
+    statusEl.className = "status " + (ready ? "ready" : "loading");
+    statusEl.querySelector(".label").textContent =
+      ready ? "Ready" + (device ? " · " + device : "") : "Loading…";
+  }
+  async function checkHealth() {
+    try {
+      const data = await (await fetch("/api/health")).json();
+      setStatus(data.status, data.device);
+      if (data.status !== "ok") setTimeout(checkHealth, 1500);
+    } catch {
+      setStatus("loading");
+      setTimeout(checkHealth, 2000);
+    }
   }
 
   async function translate() {
@@ -243,7 +277,7 @@
       setOutput("Error: " + e.message, true);
     } finally {
       translateBtn.classList.remove("loading");
-      translateBtn.disabled = false;
+      refreshBtn();
     }
   }
 
@@ -252,13 +286,13 @@
   function scheduleTranslate() {
     clearTimeout(timer);
     $("counter").textContent = input.value.length + " characters";
+    refreshBtn();
     timer = setTimeout(translate, 600);
   }
 
   function swap() {
     direction = direction === "en2km" ? "km2en" : "en2km";
     refreshLabels();
-    // Move the current translation into the input for round-trip editing.
     const prev = output.classList.contains("placeholder") ? "" : output.textContent;
     input.value = prev;
     $("counter").textContent = input.value.length + " characters";
@@ -271,17 +305,24 @@
   swapBtn.addEventListener("click", swap);
   $("clearBtn").addEventListener("click", () => {
     input.value = ""; $("counter").textContent = "0 characters";
-    setOutput("Translation", true); input.focus();
+    setOutput("Translation", true); refreshBtn(); input.focus();
   });
   $("copyBtn").addEventListener("click", () => {
-    if (!output.classList.contains("placeholder")) navigator.clipboard.writeText(output.textContent);
+    if (output.classList.contains("placeholder")) return;
+    navigator.clipboard.writeText(output.textContent);
+    const btn = $("copyBtn");
+    btn.textContent = "Copied"; btn.classList.add("done");
+    setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("done"); }, 1200);
   });
   $("mode").addEventListener("change", () => { if (input.value.trim()) translate(); });
   input.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); translate(); }
   });
 
+  applyTheme(root.getAttribute("data-theme") || "light");
   refreshLabels();
+  refreshBtn();
+  checkHealth();
 </script>
 </body>
 </html>

@@ -53,3 +53,5 @@ packages = ["netra_nmt"]
 [tool.hatch.build.targets.wheel.force-include]
 "netra_nmt/assets/spm_32k.model" = "netra_nmt/assets/spm_32k.model"
 "netra_nmt/static/index.html" = "netra_nmt/static/index.html"
+"netra_nmt/static/netra-eye.png" = "netra_nmt/static/netra-eye.png"
+"netra_nmt/static/netra-wordmark.png" = "netra_nmt/static/netra-wordmark.png"

@@ -3,79 +3,98 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>netra-nmt · English ↔ Khmer Translation</title>
+<title>netra · English ↔ Khmer Translation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --blue: #1a73e8;
-    --blue-dark: #1558b0;
-    --bg: #f6f8fc;
+    /* Brand palette */
+    --primary: #e75f1b;       /* Primary */
+    --gold: #f6c416;          /* Accent */
+    --brown: #4f2724;         /* Accent */
+    --ink: #191014;           /* Secondary */
+    --bg: #fdfdfd;            /* Background */
     --panel: #ffffff;
-    --border: #dfe1e5;
-    --text: #202124;
-    --muted: #5f6368;
+    /* Derived */
+    --primary-dark: #c84e13;
+    --primary-tint: #fdeee6;
+    --border: #ece0db;
+    --muted: #8a7872;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: "Segoe UI", Roboto, "Noto Sans Khmer", system-ui, sans-serif;
+    font-family: "Noto Sans Khmer", system-ui, sans-serif;
     background: var(--bg);
-    color: var(--text);
+    color: var(--ink);
   }
+
   header {
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    padding: 14px 24px;
+    background: var(--ink);
+    padding: 18px 28px;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
+    border-bottom: 3px solid var(--primary);
   }
-  header .logo { font-size: 22px; font-weight: 600; color: var(--blue); }
-  header .sub { color: var(--muted); font-size: 13px; }
-  main { max-width: 960px; margin: 28px auto; padding: 0 16px; }
+  header .eye { height: 46px; width: auto; flex: none; }
+  header .titles { display: flex; flex-direction: column; gap: 6px; }
+  header .wordmark { height: 38px; width: auto; display: block; align-self: flex-start; }
+  header .sub { color: #d7c7c1; font-size: 12.5px; }
+  main { max-width: 940px; margin: 40px auto; padding: 0 20px; }
 
   .langbar {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
+    gap: 10px;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 12px 12px 0 0;
     border-bottom: none;
-    padding: 10px;
+    padding: 12px 14px;
   }
   .lang {
     flex: 1;
-    text-align: center;
+    display: flex; align-items: center; gap: 8px;
     font-weight: 600;
-    padding: 8px 12px;
-    border-radius: 8px;
-    color: var(--text);
+    font-size: 15px;
+    padding: 9px 14px;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--border);
   }
+  .lang::before {
+    content: ""; width: 9px; height: 9px; flex: none;
+  }
+  #srcLang::before { background: var(--primary); }
+  #tgtLang::before { background: var(--gold); }
+  #tgtLang { justify-content: flex-end; flex-direction: row-reverse; }
   .swap {
     border: 1px solid var(--border);
     background: var(--panel);
-    color: var(--blue);
-    width: 40px; height: 40px;
-    border-radius: 50%;
+    color: var(--primary);
+    width: 40px; height: 40px; flex: none;
     cursor: pointer;
     font-size: 18px;
     display: flex; align-items: center; justify-content: center;
-    transition: background .15s, transform .2s;
+    transition: background .15s, border-color .15s, color .15s;
   }
-  .swap:hover { background: #eef3fd; }
-  .swap:active { transform: rotate(180deg); }
+  .swap:hover { background: var(--primary); border-color: var(--primary); color: #fff; }
 
   .panes {
     display: grid;
     grid-template-columns: 1fr 1fr;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 0 0 12px 12px;
     overflow: hidden;
   }
-  .pane { padding: 18px; min-height: 240px; position: relative; }
+  .pane { padding: 22px; min-height: 240px; position: relative; }
   .pane:first-child { border-right: 1px solid var(--border); }
+  .pane .tag {
+    display: block;
+    font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 14px;
+  }
   textarea, .output {
     width: 100%;
     min-height: 180px;
@@ -83,39 +102,45 @@
     outline: none;
     resize: none;
     font-size: 18px;
-    line-height: 1.6;
+    line-height: 1.7;
     font-family: inherit;
     background: transparent;
-    color: var(--text);
+    color: var(--ink);
   }
+  .pane:focus-within { box-shadow: inset 3px 0 0 var(--primary); }
   .output { white-space: pre-wrap; }
   .output.placeholder { color: var(--muted); }
   .pane .foot {
     display: flex; align-items: center; justify-content: space-between;
-    margin-top: 10px; color: var(--muted); font-size: 13px;
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 13px;
   }
   .iconbtn {
     border: none; background: transparent; color: var(--muted);
-    cursor: pointer; font-size: 13px; padding: 4px 6px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600; padding: 5px 8px;
+    font-family: inherit;
   }
-  .iconbtn:hover { background: #f1f3f4; color: var(--text); }
+  .iconbtn:hover { background: var(--primary-tint); color: var(--primary); }
 
   .controls {
     display: flex; align-items: center; justify-content: space-between;
-    margin-top: 16px;
+    margin-top: 18px;
   }
   .controls .left { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
   select {
-    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
-    font-size: 14px; background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); padding: 9px 12px;
+    font-size: 14px; background: var(--panel); color: var(--ink);
+    font-family: inherit; cursor: pointer;
   }
+  select:focus { outline: none; border-color: var(--primary); }
   .btn {
-    background: var(--blue); color: #fff; border: none;
-    padding: 11px 26px; border-radius: 24px; font-size: 15px; font-weight: 600;
+    background: var(--primary); color: #fff; border: none;
+    padding: 12px 30px; font-size: 15px; font-weight: 600;
     cursor: pointer; transition: background .15s;
+    font-family: inherit;
   }
-  .btn:hover { background: var(--blue-dark); }
-  .btn:disabled { background: #9aa0a6; cursor: default; }
+  .btn:hover { background: var(--primary-dark); }
+  .btn:disabled { background: #c4b3ad; cursor: default; }
   .spinner {
     display: none; width: 16px; height: 16px; border: 2px solid #fff;
     border-top-color: transparent; border-radius: 50%;
@@ -132,8 +157,11 @@
 </head>
 <body>
   <header>
-    <span class="logo">netra-nmt</span>
-    <span class="sub">English ↔ Khmer Neural Machine Translation</span>
+    <img class="eye" src="/static/netra-eye.png" alt="netra" />
+    <span class="titles">
+      <img class="wordmark" src="/static/netra-wordmark.png" alt="netra" />
+      <span class="sub">English ↔ Khmer · Neural Machine Translation</span>
+    </span>
   </header>
 
   <main>
@@ -145,6 +173,7 @@
 
     <div class="panes">
       <div class="pane">
+        <span class="tag">source</span>
         <textarea id="input" placeholder="Enter text" autofocus></textarea>
         <div class="foot">
           <span id="counter">0 characters</span>
@@ -152,6 +181,7 @@
         </div>
       </div>
       <div class="pane">
+        <span class="tag">translation</span>
         <div class="output placeholder" id="output">Translation</div>
         <div class="foot">
           <span></span>
@@ -171,6 +201,7 @@
       <button class="btn" id="translateBtn">Translate<span class="spinner"></span></button>
     </div>
   </main>
+
 
 <script>
   const LABELS = { en: "English", km: "Khmer" };

@@ -31,6 +31,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import DEFAULT_DIRECTION, DIRECTIONS
@@ -100,6 +101,10 @@ def health() -> dict:
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     return (_STATIC / "index.html").read_text(encoding="utf-8")
+
+
+# Serve brand assets (logo, wordmark) and any other static files.
+app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
 
 def main(argv=None) -> None:

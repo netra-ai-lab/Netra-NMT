@@ -248,3 +248,9 @@ export/
 DESIGN_SYSTEM.md
 # Standalone Streamlit Space (not part of the package; deployed separately)
 streamlit_space/
+
+# Benchmark scripts and generated chart / result images (local, not versioned)
+scripts/benchmark_speed*.py
+scripts/chart_speed.py
+results/benchmark_speed*.json
+

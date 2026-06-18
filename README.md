@@ -28,6 +28,14 @@
 </p>
 </h2>
 
+<p align="center">
+<img src="./assets/inference_benchmark.png" style="width: 1000px" align=center>
+</p>
+
+<p align="center">
+<a href="">Inference Speed Benchmark on CPU Using Greedy, and Beam Search Decoding Strategy</a>       
+</p>
+
 ## 1. Abstract
 This repository present Netra-NMT a 90M-parameter encoder-decoder transformer-based model trained on **220 million tokens** of English-Khmer parallel text (4.2M bidirectional examples). The encoder uses bidirectional self-attention, much like BERT, to capture global contextual representation. The decoder perform autoregressive generation through causal self-attention and encoder-decoder cross attention.
 
@@ -91,15 +99,18 @@ Netra-NMT follows a standard encoder-decoder transformer architecture with sever
 
 ## 4. Evaluation Results
 
-Evaluated on the test splits of `mutiyama/alt` (ALT) and `rinabuoy/khmer-english-parallel`
-(greedy decoding, beam size 1):
-
-| Dataset   | Direction | spBLEU | chrF++ | COMET | BERTScore F1 |
-|-----------|-----------|:------:|:------:|:-----:|:------------:|
-| ALT       | EN→KM     | 25.39  | 37.15  | 77.22 | 89.92        |
-| ALT       | KM→EN     | 18.85  | 45.73  | 76.04 | 91.65        |
-| rinabuoy  | EN→KM     | 11.43  | 23.53  | 72.80 | 87.85        |
-| rinabuoy  | KM→EN     | 14.63  | 39.54  | 73.66 | 90.03        |
+<div align="center" style="display: flex; justify-content: center; gap: 20px;">
+  <img
+    src="./assets/chrf_benchmark.png"
+    width="48%"
+    alt="chrF++ Benchmark"
+  />
+  <img
+    src="./assets/bertscore_benchmark.png"
+    width="48%"
+    alt="BERTScore Benchmark"
+  />
+</div>
 
 ## Install
 
@@ -179,26 +190,3 @@ curl -X POST http://127.0.0.1:8000/api/translate \
 ```
 
 Requires the `web` extra (`pip install "netra-nmt[web]"`).
-
-## Repository layout
-
-```
-netra_nmt/                 # the installable package (model + API + CLI + web)
-scripts/
-  export_checkpoint.py     # checkpoint.pt -> fp16 safetensors + config.json (+ HF upload)
-  training/                # full data + training + evaluation pipeline (research code)
-results/                   # evaluation results + training logs
-```
-
-## Re-exporting / re-training
-
-To regenerate the release artifacts from a training checkpoint:
-
-```bash
-python scripts/export_checkpoint.py                       # -> export/
-python scripts/export_checkpoint.py --push Darayut/netra-nmt-small   # also upload to the Hub
-```
-
-The end-to-end data preparation, training, and evaluation scripts live in `scripts/training/`
-(numbered `01_*` … `11_*`, plus `09_train_student.py` and `evaluate_alt.py`). They require the
-training extras: `pip install -e ".[train]"`.

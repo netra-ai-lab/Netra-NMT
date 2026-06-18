@@ -99,18 +99,10 @@ Netra-NMT follows a standard encoder-decoder transformer architecture with sever
 
 ## 4. Evaluation Results
 
-<div align="center" style="display: flex; justify-content: center; gap: 20px;">
-  <img
-    src="./assets/chrf_benchmark.png"
-    width="48%"
-    alt="chrF++ Benchmark"
-  />
-  <img
-    src="./assets/bertscore_benchmark.png"
-    width="48%"
-    alt="BERTScore Benchmark"
-  />
-</div>
+<p align="center">
+<img src="./assets/chrf_benchmark.png" style="width: 1000px" align=center>
+<img src="./assets/bertscore_benchmark.png" style="width: 1000px" align=center>
+</p>
 
 ## Install
 

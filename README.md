@@ -3,7 +3,7 @@
     src="./assets/logo.png"
     width="20%"
     alt="Netra Lab"
-    style="vertical-align: middle; margin-right: 20px;"
+    style="vertical-align: middle; margin-right: 30px;"
   />
   <img
     src="./assets/wordmark.png"

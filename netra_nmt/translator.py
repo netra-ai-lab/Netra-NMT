@@ -74,25 +74,26 @@ class NetraTranslator:
     # internals
     # -----------------------------------------------------------------
 
-    def _trucase_en(self, text: str) -> str:
-        try:
-            import nltk
-            words = text.split()
-            cap_words = [w[0].upper() + w[1:] if w else w for w in words]
-            tagged = nltk.pos_tag(cap_words)
-            result = []
-            for orig, (_, tag) in zip(words, tagged):
-                if tag in ('NNP', 'NNPS'):
-                    result.append(orig[0].upper() + orig[1:])
-                elif orig.lower() == 'i':
-                    result.append('I')
-                else:
-                    result.append(orig)
-            return ' '.join(result)
-        except ImportError:
-            return text
-        except LookupError:
-            return text
+    def _normalize_en(self, text: str) -> str:
+        import re
+        words = text.lower().split()
+        result = []
+        for word in words:
+            stem = re.sub(r'^[^\w]+|[^\w]+$', '', word)
+            if not stem:
+                result.append(word)
+                continue
+            if stem == 'i':
+                result.append(word[0].upper() + word[1:])
+                continue
+            cap_stem = stem[0].upper() + stem[1:]
+            # If the capitalized form tokenizes into fewer pieces, the SP model
+            # knows this word as a proper noun — keep it capitalized.
+            if len(self.sp.encode(cap_stem, out_type=int)) < len(self.sp.encode(stem, out_type=int)):
+                result.append(word[0].upper() + word[1:])
+            else:
+                result.append(word)
+        return ' '.join(result)
 
     def _encode(self, text: str, target_lang: str):
         marker = LANG_MARKERS[target_lang]
@@ -138,7 +139,7 @@ class NetraTranslator:
         _src_lang, tgt_lang = DIRECTIONS[direction]
 
         if direction == "en2km":
-            text = self._trucase_en(text)
+            text = self._normalize_en(text)
 
         input_ids, src_mask = self._encode(text, tgt_lang)
         bos_id, eos_id = self.config.bos_id, self.config.eos_id

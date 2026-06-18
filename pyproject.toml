@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-web = ["fastapi>=0.110", "uvicorn[standard]>=0.27", "nltk>=3.8"]
+web = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
 train = [
     "datasets",
     "pandas",

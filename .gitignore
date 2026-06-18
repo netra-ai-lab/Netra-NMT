@@ -246,3 +246,5 @@ tokenizer/*.vocab
 export/
 
 DESIGN_SYSTEM.md
+# Standalone Streamlit Space (not part of the package; deployed separately)
+streamlit_space/

@@ -19,7 +19,7 @@
  <a href="https://github.com/netra-ai-lab/Netra-NMT"><b>GitHub</b></a> |
   <a href="https://huggingface.co/Darayut/netra-nmt-small"><b>Model Download</b></a> |
     <a href="https://huggingface.co/collections/Darayut/synthetic-khmer-english-parallel-corpus"><b>Dataset Download</b></a> |
-    <a href="#"><b>Inference Space</b></a> |
+    <a href="https://huggingface.co/spaces/Darayut/Netra-NMT"><b>Inference Space</b></a> |
 </p>
 
 <h2>

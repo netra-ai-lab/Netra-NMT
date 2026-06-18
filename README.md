@@ -1,16 +1,95 @@
-# netra-nmt
+<div align="center">
+  <img
+    src="./assets/logo.png"
+    width="20%"
+    alt="Netra Lab"
+    style="vertical-align: middle; margin-right: 20px;"
+  />
+  <img
+    src="./assets/wordmark.png"
+    width="20%"
+    alt="Netra Lab"
+    style="vertical-align: middle;"
+  />
+</div>
 
-A compact, **from-scratch** encoder-decoder model for **English ↔ Khmer** machine translation.
+<hr>
 
-`netra-nmt` is a ~90M-parameter transformer (SwiGLU FFN, weight-tied decoder, 32k SentencePiece
-vocab) trained on **~222 million tokens** of EN–KM parallel text (≈4.2M bidirectional examples).
-It is *not* a fine-tune of NLLB — the architecture and
-tokenizer are custom and the weights are trained from scratch. This release is the **`small`**
-variant (`Darayut/netra-nmt-small` on the Hub); larger variants are planned under the same package. The package ships with a clean Python
-API, a CLI, and an optional web demo. Model weights are hosted on the Hugging Face Hub and downloaded
-automatically on first use.
+<p align="center">
+ <a href="https://github.com/netra-ai-lab/Netra-NMT"><b>GitHub</b></a> |
+  <a href="https://huggingface.co/Darayut/netra-nmt-small"><b>Model Download</b></a> |
+    <a href="https://huggingface.co/collections/Darayut/synthetic-khmer-english-parallel-corpus"><b>Dataset Download</b></a> |
+    <a href="#"><b>Inference Space</b></a> |
+</p>
 
-## Results
+<h2>
+<p align="center">
+  <a href="">A Compact Bidirectional Encoder-Decoder Transformer-Based Model for English-Khmer Translation</a>
+</p>
+</h2>
+
+## 1. Abstract
+This repository present Netra-NMT a 90M-parameter encoder-decoder transformer-based model trained on **220 million tokens** of English-Khmer parallel text (4.2M bidirectional examples). The encoder uses bidirectional self-attention, much like BERT, to capture global contextual representation. The decoder perform autoregressive generation through causal self-attention and encoder-decoder cross attention.
+
+Unlike traditional transformer block, Netra-NMT incorporates several architectural improvements, including Pre-Layer Normalization (Pre-LN) for stable optimization, SwiGLU feed-forward networks for enhanced representational capacity, and weight tying between the decoder embedding layer and output projection head to reduce parameter redundancy.
+
+## 2. Dataset
+
+Netra-NMT was trained on **220 million tokens** drawn from approximately **2.4 million unique English-Khmer sentence pairs** (4.2 million examples after bidirectional augmentation). The corpus combines LLM-generated synthetic data with web-crawled parallel text, spanning legal, literary, medical, technical, and conversational domains.
+
+### 2.1 Sources
+
+| Dataset | Type | Pairs | Domains |
+|---------|------|------:|---------|
+| [Darayut/khmer-english-pairs-raw](https://huggingface.co/datasets/Darayut/khmer-english-pairs-raw) | Synthetic | 200K | Legal, Literary, Governmental |
+| [lyfeyvutha/nllb-en-km-316K](https://huggingface.co/datasets/lyfeyvutha/nllb-en-km-316K) | Synthetic | 316K | General |
+| [KrorngAI/ParaCrawl-English-Khmer-v2](https://huggingface.co/datasets/KrorngAI/ParaCrawl-English-Khmer-v2) | Web crawl (ParaCrawl) | 1.5M | Web / general |
+| [SeyhaLite/Translate-English-Khmer-All](https://huggingface.co/datasets/SeyhaLite/Translate-English-Khmer-All) | --- | 366K | General |
+| **Total** | | **2.4M** | |
+
+### 2.2 Preprocessing
+
+Raw data was cleaned through the following pipeline:
+
+1. **Deduplication**: exact duplicate pairs removed across all sources.
+2. **Length filtering**: pairs with extreme source/target length mismatches were discarded.
+3. **Empty/null removal**: pairs where either side was empty or below a minimum token count were dropped.
+
+After cleaning, each surviving pair is duplicated in both directions (`EN→KM` and `KM→EN`) with a direction prefix token (`<2km>` / `<2en>`), yielding ~4.2 million training examples.
+
+## 3. Model Architecture
+
+<div align="center">
+  <img src="./assets/model_architecture.png" width="70%" alt="Netra-NMT Architecture" />
+  <p><em>Figure 1: Overview of the Netra-NMT encoder-decoder architecture. The encoder (left) processes the source sentence with bidirectional self-attention; the decoder (right) generates the target sentence autoregressively via causal self-attention and cross-attention over the encoder output. Both sides share a 32K SentencePiece tokenizer.</em></p>
+</div>
+
+Netra-NMT follows a standard encoder-decoder transformer architecture with several modifications for training stability and parameter efficiency.
+
+**Encoder**  takes the source sentence tokenized by the shared 32K SentencePiece tokenizer, adds learned positional embeddings, and passes the sequence through 6 transformer layers with *bidirectional* self-attention (every token attends to every other token, similar to BERT). A final Pre-LN layer norm is applied to the encoder output before it is passed to the decoder via cross-attention.
+
+**Decoder** takes the (partially generated) target sentence through the same tokenizer, adds positional embeddings, and passes it through 6 transformer layers. Each decoder layer applies three sub-layers in order: (1) *causal* (masked) self-attention over previously generated tokens, (2) cross-attention over the full encoder output, and (3) a feed-forward block. A final Pre-LN layer norm feeds into the tied linear projection head to produce output token probabilities.
+
+**Architectural improvements over the vanilla transformer:**
+
+| Feature | Detail |
+|---------|--------|
+| Pre-Layer Normalization | Layer norm applied *before* each sub-layer (Pre-LN) rather than after, improving gradient flow and training stability |
+| SwiGLU FFN | Feed-forward blocks use the SwiGLU activation instead of ReLU, providing richer representational capacity at no parameter cost |
+| Weight tying | The decoder input embedding matrix is shared with the output linear projection head, reducing redundant parameters |
+
+**Hyperparameters:**
+
+| | |
+|---|---|
+| d_model | 512 |
+| Encoder / Decoder layers | 6 / 6 |
+| Attention heads | 8 |
+| FFN hidden size | 2048 |
+| Vocabulary | 32K (SentencePiece unigram, shared) |
+| Total parameters | ~89.7M |
+
+## 4. Evaluation Results
 
 Evaluated on the test splits of `mutiyama/alt` (ALT) and `rinabuoy/khmer-english-parallel`
 (greedy decoding, beam size 1):
@@ -101,17 +180,6 @@ curl -X POST http://127.0.0.1:8000/api/translate \
 
 Requires the `web` extra (`pip install "netra-nmt[web]"`).
 
-## Model details
-
-| | |
-|---|---|
-| Architecture | encoder-decoder transformer, Pre-LN, SwiGLU FFN |
-| Size | d_model 512, 6 enc / 6 dec layers, 8 heads, ffn 2048 |
-| Parameters | ~89.7M |
-| Tokenizer | SentencePiece unigram, 32k vocab (bundled with the package) |
-| Direction control | source is prefixed with `<2km>` (→Khmer) or `<2en>` (→English) |
-| Released weights | fp16 `safetensors`, ~180 MB, on the Hugging Face Hub |
-
 ## Repository layout
 
 ```
@@ -134,7 +202,3 @@ python scripts/export_checkpoint.py --push Darayut/netra-nmt-small   # also uplo
 The end-to-end data preparation, training, and evaluation scripts live in `scripts/training/`
 (numbered `01_*` … `11_*`, plus `09_train_student.py` and `evaluate_alt.py`). They require the
 training extras: `pip install -e ".[train]"`.
-
-## License
-
-MIT.

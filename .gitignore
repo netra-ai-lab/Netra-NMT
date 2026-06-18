@@ -244,3 +244,5 @@ tokenizer/*.model
 tokenizer/*.vocab
 # netra-nmt release export (weights go to Hugging Face Hub)
 export/
+
+DESIGN_SYSTEM.md

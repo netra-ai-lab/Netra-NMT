@@ -18,7 +18,7 @@
 <p align="center">
  <a href="https://github.com/netra-ai-lab/Netra-NMT"><b>GitHub</b></a> |
   <a href="https://huggingface.co/Darayut/netra-nmt-small"><b>Model Download</b></a> |
-    <a href="https://huggingface.co/collections/Darayut/synthetic-khmer-english-parallel-corpus"><b>Dataset Download</b></a> |
+    <a href="https://huggingface.co/datasets/Darayut/bilingual-en-km"><b>Dataset Download</b></a> |
     <a href="https://huggingface.co/spaces/Darayut/Netra-NMT"><b>Inference Space</b></a> |
 </p>
 
@@ -100,8 +100,7 @@ Netra-NMT follows a standard encoder-decoder transformer architecture with sever
 ## 4. Evaluation Results
 
 <p align="center">
-<img src="./assets/chrf_benchmark.png" style="width: 1000px" align=center>
-<img src="./assets/bertscore_benchmark.png" style="width: 1000px" align=center>
+<img src="./assets/metrics_benchmark.png" style="width: 1000px" align=center>
 </p>
 
 ## Install

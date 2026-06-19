@@ -254,3 +254,6 @@ scripts/benchmark_speed*.py
 scripts/chart_speed.py
 results/benchmark_speed*.json
 
+scripts/training/
+
+test.py

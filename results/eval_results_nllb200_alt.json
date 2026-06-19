@@ -1,0 +1,43 @@
+{
+  "model": "facebook/nllb-200-distilled-600M",
+  "dataset": "mutiyama/alt",
+  "split": "test",
+  "batch_size": 32,
+  "max_new_tokens": 256,
+  "results": [
+    {
+      "direction": "EN→KH",
+      "spbleu": 9.24,
+      "bleu_signature": "nrefs:1|case:mixed|eff:no|tok:flores200|smooth:exp|version:2.6.0",
+      "chrf_pp": 34.38,
+      "chrf_signature": "nrefs:1|case:mixed|eff:yes|nc:6|nw:2|space:no|version:2.6.0",
+      "kmbleu": 12.06,
+      "kmbleu_tokenize": "khmercut",
+      "ter": 78.68,
+      "ter_tokenize": "khmercut",
+      "comet": 76.54,
+      "comet_model": "Unbabel/wmt22-comet-da",
+      "bertscore_f1": 88.24,
+      "bertscore_model": "xlm-roberta-base",
+      "n_pairs": 1018,
+      "beam_size": 1
+    },
+    {
+      "direction": "KH→EN",
+      "spbleu": 31.28,
+      "bleu_signature": "nrefs:1|case:mixed|eff:no|tok:flores200|smooth:exp|version:2.6.0",
+      "chrf_pp": 54.14,
+      "chrf_signature": "nrefs:1|case:mixed|eff:yes|nc:6|nw:2|space:no|version:2.6.0",
+      "kmbleu": null,
+      "kmbleu_tokenize": null,
+      "ter": 55.34,
+      "ter_tokenize": "tercom",
+      "comet": 84.25,
+      "comet_model": "Unbabel/wmt22-comet-da",
+      "bertscore_f1": 93.62,
+      "bertscore_model": "xlm-roberta-base",
+      "n_pairs": 1018,
+      "beam_size": 1
+    }
+  ]
+}

@@ -1,12 +1,12 @@
 <div align="center">
   <img
-    src="./assets/logo.png"
+    src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/logo.png"
     width="20%"
     alt="Netra Lab"
     style="vertical-align: middle; margin-right: 30px;"
   />
   <img
-    src="./assets/wordmark.png"
+    src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/wordmark.png"
     width="20%"
     alt="Netra Lab"
     style="vertical-align: middle;"
@@ -29,7 +29,7 @@
 </h2>
 
 <p align="center">
-<img src="./assets/inference_benchmark.png" style="width: 1000px" align=center>
+<img src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/inference_benchmark.png" style="width: 1000px" align=center>
 </p>
 
 <p align="center">
@@ -68,7 +68,7 @@ After cleaning, each surviving pair is duplicated in both directions (`EN→KM` 
 ## 3. Model Architecture
 
 <div align="center">
-  <img src="./assets/model_architecture.png" width="70%" alt="Netra-NMT Architecture" />
+  <img src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/model_architecture.png" width="70%" alt="Netra-NMT Architecture" />
   <p><em>Figure 1: Overview of the Netra-NMT encoder-decoder architecture. The encoder (left) processes the source sentence with bidirectional self-attention; the decoder (right) generates the target sentence autoregressively via causal self-attention and cross-attention over the encoder output. Both sides share a 32K SentencePiece tokenizer.</em></p>
 </div>
 
@@ -100,7 +100,7 @@ Netra-NMT follows a standard encoder-decoder transformer architecture with sever
 ## 4. Evaluation Results
 
 <p align="center">
-<img src="./assets/metrics_benchmark.png" style="width: 1000px" align=center>
+<img src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/metrics_benchmark.png" style="width: 1000px" align=center>
 </p>
 
 ## Install

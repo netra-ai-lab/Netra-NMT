@@ -15,6 +15,11 @@ from pathlib import Path
 # --------------------------------------------------------------------------
 HF_REPO_ID = "Darayut/netra-nmt-small"
 
+# Experimental non-autoregressive (diffusion) model — see netra_nmt.diffusion_*.
+# Same override pattern: NetraTranslator/DiffusionTranslator(repo_id=...) or
+# NETRA_NMT_DIFFUSION_REPO_ID.
+HF_DIFFUSION_REPO_ID = "Darayut/netra-nmt-small-diffusion"
+
 WEIGHTS_FILENAME = "model.safetensors"
 CONFIG_FILENAME = "config.json"
 SPM_FILENAME = "spm_32k.model"

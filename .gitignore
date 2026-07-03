@@ -230,6 +230,7 @@ corpus.txt
 ./checkpoints 
 checkpoints/
 checkpoints
+checkpoints_diffusion
 
 checkpoints_distill
 
@@ -257,3 +258,8 @@ results/benchmark_speed*.json
 scripts/training/
 
 test.py
+
+train_log_continued.jsonl
+train_log_diffusion.jsonl
+
+export_diffusion

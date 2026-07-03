@@ -129,6 +129,14 @@
     font: inherit; font-size: 14px; background: var(--panel); color: var(--ink); cursor: pointer;
   }
   select:focus { outline: none; border-color: var(--primary); }
+  input[type="number"] {
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px;
+    font: inherit; font-size: 14px; background: var(--panel); color: var(--ink);
+    width: 62px;
+  }
+  input[type="number"]:focus { outline: none; border-color: var(--primary); }
+  .field { display: inline-flex; align-items: center; gap: 10px; }
+  .field.hidden { display: none; }
   .btn {
     background: var(--primary); color: #fff; border: none; border-radius: 8px;
     padding: 12px 28px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
@@ -191,11 +199,24 @@
 
     <div class="controls">
       <div class="left">
-        <label for="mode">Decoding</label>
-        <select id="mode">
-          <option value="greedy">Greedy (fast)</option>
-          <option value="beam">Beam search (quality)</option>
-        </select>
+        <div class="field hidden" id="modelField">
+          <label for="modelType">Model</label>
+          <select id="modelType">
+            <option value="ar">Autoregressive</option>
+            <option value="diffusion">Diffusion (experimental)</option>
+          </select>
+        </div>
+        <div class="field" id="modeField">
+          <label for="mode">Decoding</label>
+          <select id="mode">
+            <option value="greedy">Greedy (fast)</option>
+            <option value="beam">Beam search (quality)</option>
+          </select>
+        </div>
+        <div class="field hidden" id="stepsField">
+          <label for="steps">Steps</label>
+          <input type="number" id="steps" min="1" max="30" value="10" title="Denoising passes (K) — higher is slower but more accurate" />
+        </div>
       </div>
       <button class="btn" id="translateBtn">Translate<span class="spinner"></span></button>
     </div>
@@ -248,10 +269,33 @@
     statusEl.querySelector(".label").textContent =
       ready ? "Ready" + (device ? " · " + device : "") : "Loading…";
   }
+
+  // Model-type controls: the "Model" select only appears once the server
+  // confirms (via /api/health) that the diffusion model is actually loaded —
+  // AR-only deployments never see it.
+  const modelField = $("modelField"), modelTypeSel = $("modelType");
+  const modeField = $("modeField"), stepsField = $("stepsField"), stepsInput = $("steps");
+  let diffusionChecked = false;
+
+  function updateModelControls() {
+    const isDiffusion = modelTypeSel.value === "diffusion";
+    modeField.classList.toggle("hidden", isDiffusion);
+    stepsField.classList.toggle("hidden", !isDiffusion);
+  }
+  modelTypeSel.addEventListener("change", () => {
+    updateModelControls();
+    if (input.value.trim()) translate();
+  });
+  stepsInput.addEventListener("change", () => { if (input.value.trim()) translate(); });
+
   async function checkHealth() {
     try {
       const data = await (await fetch("/api/health")).json();
       setStatus(data.status, data.device);
+      if (!diffusionChecked && data.diffusion_available) {
+        modelField.classList.remove("hidden");
+        diffusionChecked = true;
+      }
       if (data.status !== "ok") setTimeout(checkHealth, 1500);
     } catch {
       setStatus("loading");
@@ -265,10 +309,14 @@
     translateBtn.classList.add("loading");
     translateBtn.disabled = true;
     try {
+      const isDiffusion = modelTypeSel.value === "diffusion";
+      const body = isDiffusion
+        ? { text, direction, model_type: "diffusion", decode_steps: Number(stepsInput.value) || 10 }
+        : { text, direction, model_type: "ar", mode: $("mode").value };
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, direction, mode: $("mode").value }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
@@ -322,6 +370,7 @@
   applyTheme(root.getAttribute("data-theme") || "light");
   refreshLabels();
   refreshBtn();
+  updateModelControls();
   checkHealth();
 </script>
 </body>

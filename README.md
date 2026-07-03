@@ -103,6 +103,42 @@ Netra-NMT follows a standard encoder-decoder transformer architecture with sever
 <img src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/metrics_benchmark.png" style="width: 1000px" align=center>
 </p>
 
+## 5. Diffusion model (experimental)
+
+An alternative, **non-autoregressive** decoder is available as an opt-in model: same encoder-decoder
+size (~89.85M params, vs the AR model's 89.72M — the only difference is a small length-prediction head),
+but instead of generating one token at a time, it starts from an all-`[MASK]` target and fills it in
+over a fixed number of parallel denoising passes (discrete/absorbing-state diffusion, Mask-Predict
+decoding). The point isn't higher quality — it's **decoding cost that doesn't grow with sentence
+length**, which matters most on CPU.
+
+**Honest trade-off** (`mutiyama/alt` test, K=10 denoising passes, single RTX 3060 CPU-side timing):
+
+| Direction | Metric | Autoregressive | Diffusion (K=10) |
+|---|---|---|---|
+| EN→KH | spBLEU | 24.92 | 15.79 |
+| EN→KH | chrF++ | 37.09 | 29.94 |
+| KH→EN | spBLEU | 18.10 | 12.83 |
+| KH→EN | chrF++ | 45.16 | 40.67 |
+
+| Model | Median CPU latency / sentence | Speedup vs AR |
+|---|---|---|
+| AR (greedy) | 207.6 ms | 1.0x |
+| Diffusion K=10 | 99.3 ms | 2.1x |
+| Diffusion K=4 | 39.5 ms | 5.3x |
+| Diffusion K=1 | 13.6 ms | 15.3x |
+
+Lower K is faster but less accurate (K controls how many refinement passes the model gets); pick K to
+suit your latency/quality budget. **The autoregressive model remains the default and recommended
+choice** — the diffusion model is there for cases where fixed, low CPU latency matters more than peak
+quality.
+
+Weights are published at [`Darayut/netra-nmt-small-diffusion`](https://huggingface.co/Darayut/netra-nmt-small-diffusion)
+and download automatically on first use, exactly like the default model — `DiffusionTranslator()` /
+`--model-type diffusion` work with no extra setup. See the Usage sections below. (If you trained your
+own diffusion checkpoint, `scripts/export_diffusion_checkpoint.py --checkpoint <path> --out <dir>`
+produces a local export you can point `--local-dir` at instead.)
+
 ## Install
 
 ```bash
@@ -147,6 +183,16 @@ translate("Hello", direction="en2km")
 `direction` is `"en2km"` (English→Khmer) or `"km2en"` (Khmer→English).
 `mode` is `"greedy"` (default), `"beam"`, or `"sample"`.
 
+Experimental diffusion model (see [section 5](#5-diffusion-model-experimental)) — downloads automatically,
+same as `NetraTranslator`:
+
+```python
+from netra_nmt import DiffusionTranslator
+
+t = DiffusionTranslator(steps=10)
+t.translate("I love Cambodia", direction="en2km")
+```
+
 ### 2. CLI
 
 ```bash
@@ -161,6 +207,9 @@ netra-translate --file input.txt --output output.txt --direction en2km
 
 # Interactive REPL (omit --text / --file):
 netra-translate
+
+# Experimental diffusion model (downloads automatically — see section 5):
+netra-translate --text "Hello" --model-type diffusion --decode-steps 10
 ```
 
 ### 3. Web app + REST API (FastAPI)
@@ -169,15 +218,26 @@ netra-translate
 netra-web                      # serves the web UI + API at http://127.0.0.1:8000
 netra-web --port 8080 --device cpu
 netra-web --local-dir export   # load weights from a local export dir
+
+# also enable the experimental diffusion model (opt-in — off by default, since
+# it's a second ~90M model's worth of extra memory/startup most deployments
+# won't use; weights still download automatically once enabled):
+netra-web --enable-diffusion
 ```
 
-A two-pane translation site (source left, output right, EN⇄KM swap button) plus a JSON API:
+A two-pane translation site (source left, output right, EN⇄KM swap button, plus a "Model" selector
+that appears automatically once the diffusion model is enabled) and a JSON API:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/translate \
   -H 'Content-Type: application/json' \
   -d '{"text": "Hello, how are you?", "direction": "en2km"}'
 # {"translation": "...", "direction": "en2km"}
+
+# diffusion model (400 if the server wasn't started with --enable-diffusion):
+curl -X POST http://127.0.0.1:8000/api/translate \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "Hello, how are you?", "direction": "en2km", "model_type": "diffusion", "decode_steps": 10}'
 ```
 
 Requires the `web` extra (`pip install "netra-nmt[web]"`).

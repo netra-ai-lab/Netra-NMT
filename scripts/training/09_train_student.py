@@ -68,7 +68,7 @@ def is_main(rank: int) -> bool:
 # PATHS
 # ============================================================
 
-ROOT           = Path(__file__).resolve().parent.parent
+ROOT           = Path(__file__).resolve().parent.parent.parent
 TRAIN_FILE     = ROOT / "data/processed/bilingual_train.jsonl"
 VALID_FILE     = ROOT / "data/processed/bilingual_valid.jsonl"
 TOKENIZER_PATH = ROOT / "tokenizer/spm_32k.model"
@@ -1124,12 +1124,15 @@ def main():
                 )
 
             # ── checkpoint ───────────────────────────────────
-            ckpt_path = ckpt_dir / f"epoch_{epoch+1:02d}"
+            # Best + latest only: no per-epoch epoch_NN/ snapshots. Refresh the
+            # rolling "latest" with the end-of-epoch state so it always reflects
+            # the most recent weights even between save_every_steps boundaries.
+            ckpt_path = ckpt_dir / "step_latest"
             save_checkpoint(
                 ckpt_path, unwrapped, optimizer, scaler,
                 epoch, global_step, val_loss, cfg, vocab_size,
             )
-            print(f"Checkpoint saved → {ckpt_path}")
+            print(f"Latest checkpoint refreshed → {ckpt_path}")
 
             # chrF-based checkpointing: saves the model that translates best,
             # not just the one with the lowest token-level cross-entropy loss.
@@ -1167,6 +1170,16 @@ def main():
 
 
 if __name__ == "__main__":
+    # Python 3.14 changed the default multiprocessing start method on Linux to
+    # 'forkserver', which pickles worker args — and make_collate's closure isn't
+    # picklable. DataLoader workers only do CPU-side tokenized collation (no CUDA),
+    # so restore 'fork' (the pre-3.14 default) for both datasets.map and DataLoader.
+    import multiprocessing as _mp
+    try:
+        _mp.set_start_method("fork", force=True)
+    except RuntimeError:
+        pass
+
     # The LR schedule is STEP-BASED: ONE continuous linear-warmup → cosine decay
     # to min_lr over --total-steps. Set --total-steps once to your planned final
     # step; the LR is a pure function of the global step, so resuming continues

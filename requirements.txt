@@ -3,14 +3,14 @@ pandas
 pyarrow
 fasttext-wheel
 langdetect
-sentencepiece
 tqdm
 matplotlib
 seaborn
 scikit-learn
-transformers
-accelerate
 sacrebleu>=2.3.1
 bert-score>=0.3.13
 unbabel-comet>=2.2.0
 khmercut
+transformers>=4.40.0
+accelerate>=1.0.0
+sentencepiece>=0.1.99

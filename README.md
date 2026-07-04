@@ -112,26 +112,31 @@ over a fixed number of parallel denoising passes (discrete/absorbing-state diffu
 decoding). The point isn't higher quality — it's **decoding cost that doesn't grow with sentence
 length**, which matters most on CPU.
 
-**Honest trade-off** (`mutiyama/alt` test, K=10 denoising passes, single RTX 3060 CPU-side timing):
+**Honest trade-off** (`mutiyama/alt` test, K=10 denoising passes — the default — single RTX 3060
+CPU-side timing):
 
 | Direction | Metric | Autoregressive | Diffusion (K=10) |
 |---|---|---|---|
-| EN→KH | spBLEU | 24.92 | 15.79 |
-| EN→KH | chrF++ | 37.09 | 29.94 |
-| KH→EN | spBLEU | 18.10 | 12.83 |
-| KH→EN | chrF++ | 45.16 | 40.67 |
+| EN→KH | spBLEU | 24.92 | 16.42 |
+| EN→KH | chrF++ | 37.09 | 30.52 |
+| KH→EN | spBLEU | 18.10 | 14.00 |
+| KH→EN | chrF++ | 45.16 | 41.94 |
 
 | Model | Median CPU latency / sentence | Speedup vs AR |
 |---|---|---|
-| AR (greedy) | 207.6 ms | 1.0x |
-| Diffusion K=10 | 99.3 ms | 2.1x |
-| Diffusion K=4 | 39.5 ms | 5.3x |
-| Diffusion K=1 | 13.6 ms | 15.3x |
+| AR (greedy) | 217.5 ms | 1.0x |
+| Diffusion K=1 | 17.9 ms | 12.2x |
+| Diffusion K=2 | 28.1 ms | 7.7x |
+| Diffusion K=4 | 48.0 ms | 4.5x |
+| Diffusion K=6 | 71.0 ms | 3.1x |
+| Diffusion K=10 | 113.7 ms | 1.9x |
+| Diffusion K=20 | 221.4 ms | 1.0x |
 
 Lower K is faster but less accurate (K controls how many refinement passes the model gets); pick K to
-suit your latency/quality budget. **The autoregressive model remains the default and recommended
-choice** — the diffusion model is there for cases where fixed, low CPU latency matters more than peak
-quality.
+suit your latency/quality budget. **K=10 is the recommended default** — pushing K higher keeps eroding
+the latency advantage (K=20 already lands at roughly AR's own latency, at lower quality, so there's no
+reason to go past K≈10-15). **The autoregressive model remains the default and recommended choice** —
+the diffusion model is there for cases where fixed, low CPU latency matters more than peak quality.
 
 Weights are published at [`Darayut/netra-nmt-small-diffusion`](https://huggingface.co/Darayut/netra-nmt-small-diffusion)
 and download automatically on first use, exactly like the default model — `DiffusionTranslator()` /

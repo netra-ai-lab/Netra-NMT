@@ -5,17 +5,17 @@
   "split": "test",
   "batch_size": 32,
   "max_new_tokens": null,
-  "decode_steps": 10,
+  "decode_steps": 20,
   "results": [
     {
       "direction": "EN→KH",
-      "spbleu": 15.79,
+      "spbleu": 16.62,
       "bleu_signature": "nrefs:1|case:mixed|eff:no|tok:flores200|smooth:exp|version:2.6.0",
-      "chrf_pp": 29.94,
+      "chrf_pp": 30.77,
       "chrf_signature": "nrefs:1|case:mixed|eff:yes|nc:6|nw:2|space:no|version:2.6.0",
-      "kmbleu": 10.4,
+      "kmbleu": 11.33,
       "kmbleu_tokenize": "khmercut",
-      "ter": 68.88,
+      "ter": 67.86,
       "ter_tokenize": "khmercut",
       "comet": null,
       "comet_model": null,
@@ -23,17 +23,17 @@
       "bertscore_model": null,
       "n_pairs": 1018,
       "beam_size": null,
-      "decode_steps": 10
+      "decode_steps": 20
     },
     {
       "direction": "KH→EN",
-      "spbleu": 12.83,
+      "spbleu": 14.31,
       "bleu_signature": "nrefs:1|case:mixed|eff:no|tok:flores200|smooth:exp|version:2.6.0",
-      "chrf_pp": 40.67,
+      "chrf_pp": 42.23,
       "chrf_signature": "nrefs:1|case:mixed|eff:yes|nc:6|nw:2|space:no|version:2.6.0",
       "kmbleu": null,
       "kmbleu_tokenize": null,
-      "ter": 76.72,
+      "ter": 74.5,
       "ter_tokenize": "tercom",
       "comet": null,
       "comet_model": null,
@@ -41,7 +41,7 @@
       "bertscore_model": null,
       "n_pairs": 1018,
       "beam_size": null,
-      "decode_steps": 10
+      "decode_steps": 20
     }
   ]
 }

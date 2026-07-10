@@ -35,18 +35,43 @@ import torch
 from safetensors.torch import save_file
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CKPT = ROOT / "checkpoints" / "epoch_04" / "checkpoint.pt"
-DEFAULT_SPM = ROOT / "tokenizer" / "spm_32k.model"
+DEFAULT_CKPT = ROOT / "checkpoints" / "best" / "checkpoint.pt"
+DEFAULT_SPM = ROOT / "tokenizer" / "spm_32k_kmseg.model"
 DEFAULT_OUT = ROOT / "export"
 
 # Config keys copied from the training cfg into the slim config.json.
 _CFG_KEYS = ["d_model", "enc_layers", "dec_layers", "n_heads", "ffn_dim", "max_len",
              "pad_id", "bos_id", "eos_id"]
 
+# Self-describing architecture flags written into every export.
+_ARCH_META = {"pos_encoding": "rope", "norm": "rmsnorm", "tie_all_embeddings": True}
+
 LANG_MARKERS = {"en": "<2en>", "km": "<2km>"}
 
 
-def export(checkpoint: Path, out_dir: Path, spm_path: Path) -> Path:
+def _clean_state(state_dict: dict) -> dict:
+    """Strip the torch.compile() '_orig_mod.' prefix if present."""
+    if any(k.startswith("_orig_mod.") for k in state_dict):
+        return {k.replace("_orig_mod.", "", 1): v for k, v in state_dict.items()}
+    return dict(state_dict)
+
+
+def average_checkpoints(paths: list[Path]) -> dict:
+    """Uniformly average the model tensors across several checkpoints."""
+    avg: dict | None = None
+    for p in paths:
+        sd = _clean_state(torch.load(p, map_location="cpu", weights_only=False)["model"])
+        if avg is None:
+            avg = {k: v.float().clone() for k, v in sd.items()}
+        else:
+            for k in avg:
+                avg[k] += sd[k].float()
+    n = len(paths)
+    return {k: (v / n) for k, v in avg.items()}
+
+
+def export(checkpoint: Path, out_dir: Path, spm_path: Path,
+           state_override: dict | None = None) -> Path:
     if not checkpoint.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint}")
 
@@ -55,11 +80,9 @@ def export(checkpoint: Path, out_dir: Path, spm_path: Path) -> Path:
 
     cfg = ckpt["cfg"]
     vocab_size = ckpt["vocab_size"]
-    state_dict = ckpt["model"]
-
-    # Strip the torch.compile() "_orig_mod." prefix if present.
-    if any(k.startswith("_orig_mod.") for k in state_dict):
-        state_dict = {k.replace("_orig_mod.", "", 1): v for k, v in state_dict.items()}
+    # state_override (e.g. an average of several checkpoints) wins; the loaded
+    # checkpoint above still supplies cfg / vocab_size.
+    state_dict = state_override if state_override is not None else _clean_state(ckpt["model"])
 
     # lm_head.weight is tied to decoder.embed.weight (shared storage). safetensors
     # rejects shared tensors, and it is re-tied on load, so drop it here.
@@ -74,6 +97,7 @@ def export(checkpoint: Path, out_dir: Path, spm_path: Path) -> Path:
 
     config = {k: cfg[k] for k in _CFG_KEYS if k in cfg}
     config["vocab_size"] = vocab_size
+    config.update(_ARCH_META)
     config["lang_markers"] = LANG_MARKERS
     config["dtype"] = "float16"
     (out_dir / "config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
@@ -155,9 +179,19 @@ def main(argv=None):
                    help=f"SentencePiece model to bundle (default: {DEFAULT_SPM}).")
     p.add_argument("--push", type=str, default=None, metavar="REPO_ID",
                    help="Upload the export dir to this Hugging Face repo id.")
+    p.add_argument("--average", type=Path, nargs="+", default=None, metavar="CKPT",
+                   help="Average the model weights of these checkpoints before export "
+                        "(uses --checkpoint for cfg/vocab).")
     args = p.parse_args(argv)
 
-    out_dir = export(args.checkpoint, args.out, args.spm)
+    state_override = None
+    if args.average:
+        print(f"Averaging {len(args.average)} checkpoints:")
+        for p_ in args.average:
+            print(f"  {p_}")
+        state_override = average_checkpoints(args.average)
+
+    out_dir = export(args.checkpoint, args.out, args.spm, state_override=state_override)
 
     if args.push:
         push(out_dir, args.push)

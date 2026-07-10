@@ -3,7 +3,7 @@ import sentencepiece as spm
 
 print("\nSCRIPT STARTED")
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 
 corpus = ROOT / "tokenizer" / "corpus.txt"
 out_dir = ROOT / "tokenizer"
@@ -11,9 +11,10 @@ out_dir.mkdir(exist_ok=True)
 
 print("Corpus path:", corpus)
 
+# Corpus is now Khmer word-segmented (see 06_build_tokenizer_corpus.py), so the
+# tokenizer is named *_kmseg to distinguish it from the old unsegmented model.
 configs = [
-    ("spm_32k", 32000),
-    ("spm_48k", 48000),
+    ("spm_32k_kmseg", 32000),
 ]
 
 print("Training SentencePiece tokenizers...")

@@ -20,7 +20,9 @@ from safetensors.torch import load_file
 
 from . import decoding
 from .config import DEFAULT_DIRECTION, DIRECTIONS, LANG_MARKERS, ModelConfig
+from .khseg import desegment_km, segment_km
 from .model import NetraNMT
+from .textnorm import normalize_en_source
 from .weights import resolve
 
 
@@ -63,6 +65,7 @@ class NetraTranslator:
             ffn_dim=self.config.ffn_dim,
             max_len=self.config.max_len,
             dropout=0.0,
+            pad_id=self.config.pad_id,
         )
         state_dict = load_file(str(weights_path))
         # lm_head.weight is tied to decoder.embed.weight and intentionally not
@@ -73,27 +76,6 @@ class NetraTranslator:
     # -----------------------------------------------------------------
     # internals
     # -----------------------------------------------------------------
-
-    def _normalize_en(self, text: str) -> str:
-        import re
-        words = text.lower().split()
-        result = []
-        for word in words:
-            stem = re.sub(r'^[^\w]+|[^\w]+$', '', word)
-            if not stem:
-                result.append(word)
-                continue
-            if stem == 'i':
-                result.append(word[0].upper() + word[1:])
-                continue
-            cap_stem = stem[0].upper() + stem[1:]
-            # If the capitalized form tokenizes into fewer pieces, the SP model
-            # knows this word as a proper noun — keep it capitalized.
-            if len(self.sp.encode(cap_stem, out_type=int)) < len(self.sp.encode(stem, out_type=int)):
-                result.append(word[0].upper() + word[1:])
-            else:
-                result.append(word)
-        return ' '.join(result)
 
     def _encode(self, text: str, target_lang: str):
         marker = LANG_MARKERS[target_lang]
@@ -138,8 +120,14 @@ class NetraTranslator:
             )
         _src_lang, tgt_lang = DIRECTIONS[direction]
 
+        # Source-side preprocessing must match how the training data was built
+        # (netra_nmt.textnorm + netra_nmt.khseg, see 08c_build_casenorm_dataset.py):
+        #   en2km → lowercase/NFC the English source
+        #   km2en → khmercut-segment the Khmer source
         if direction == "en2km":
-            text = self._normalize_en(text)
+            text = normalize_en_source(text)
+        elif direction == "km2en":
+            text = segment_km(text)
 
         input_ids, src_mask = self._encode(text, tgt_lang)
         bos_id, eos_id = self.config.bos_id, self.config.eos_id
@@ -161,7 +149,13 @@ class NetraTranslator:
         else:
             raise ValueError(f"Unknown mode {mode!r}. Choose greedy | beam | sample.")
 
-        return self._decode(tokens)
+        out = self._decode(tokens)
+
+        # Khmer target was trained word-segmented; restore natural (spaceless) Khmer.
+        if tgt_lang == "km":
+            out = desegment_km(out)
+
+        return out
 
     def translate_batch(
         self,

@@ -261,5 +261,14 @@ test.py
 
 train_log_continued.jsonl
 train_log_diffusion.jsonl
+train_log_rope.jsonl
 
+metrics.md
 export_diffusion
+
+research
+
+export_rope
+
+# Training checkpoints — all variants (model weights are published to the Hugging Face Hub)
+checkpoints*/

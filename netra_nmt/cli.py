@@ -15,11 +15,6 @@ Examples
     # Beam search:
     netra-translate --text "Hello" --mode beam --beam-size 5
 
-    # Experimental non-autoregressive diffusion model (faster CPU decoding,
-    # currently lower quality) — needs a local export, see
-    # scripts/export_diffusion_checkpoint.py:
-    netra-translate --text "Hello" --model-type diffusion --local-dir export_diffusion
-
     # Interactive REPL (no --text / --file):
     netra-translate
 """
@@ -32,27 +27,22 @@ import time
 from pathlib import Path
 
 from .config import DEFAULT_DIRECTION, DIRECTIONS
-from .diffusion_translator import DEFAULT_DECODE_STEPS, DiffusionTranslator
 from .translator import NetraTranslator
 
 REPL_HELP = """
 Commands:
   :dir en2km | km2en             — switch translation direction
-  :mode greedy | beam | sample   — switch decoding strategy (AR model only)
-  :beam N                        — set beam size (AR model only, default 5)
-  :temp F                        — set sampling temperature (AR model only)
-  :topp F                        — set top-p (AR model only)
-  :maxlen N                      — set max output tokens (AR model only)
-  :steps N                       — set denoising passes K (diffusion model only)
+  :mode greedy | beam | sample   — switch decoding strategy
+  :beam N                        — set beam size (default 5)
+  :temp F                        — set sampling temperature
+  :topp F                        — set top-p
+  :maxlen N                      — set max output tokens
   :help                          — show this message
   :quit  or  Ctrl-D              — exit
 """
 
 
 def _translate_one(translator, text: str, direction: str, args):
-    """Dispatch to the right translate() signature for the loaded model type."""
-    if isinstance(translator, DiffusionTranslator):
-        return translator.translate(text, direction=direction, steps=args.decode_steps)
     return translator.translate(
         text, direction=direction, mode=args.mode, beam_size=args.beam_size,
         temperature=args.temperature, top_p=args.top_p, max_new_tokens=args.max_new_tokens,
@@ -62,22 +52,11 @@ def _translate_one(translator, text: str, direction: str, args):
 def _interactive_repl(translator, args):
     direction = args.direction
     mode = args.mode
-    beam_size = args.beam_size
-    temperature = args.temperature
-    top_p = args.top_p
-    max_new_tokens = args.max_new_tokens
-    decode_steps = args.decode_steps
-    is_diffusion = isinstance(translator, DiffusionTranslator)
 
     print("\n" + "=" * 60)
     print("  netra-nmt  —  Interactive Translation")
     print("=" * 60)
-    if is_diffusion:
-        print(f"  Model: diffusion (experimental)  |  Direction: {direction}  |  "
-              f"Steps: {decode_steps}  |  Type :help for commands")
-    else:
-        print(f"  Model: autoregressive  |  Direction: {direction}  |  Mode: {mode}  |  "
-              f"Type :help for commands")
+    print(f"  Direction: {direction}  |  Mode: {mode}  |  Type :help for commands")
     print("=" * 60 + "\n")
 
     while True:
@@ -109,25 +88,17 @@ def _interactive_repl(translator, args):
                 args.mode = mode
                 print(f"  mode = {mode}")
             elif cmd == ":beam" and len(parts) == 2:
-                beam_size = int(parts[1])
-                args.beam_size = beam_size
-                print(f"  beam_size = {beam_size}")
+                args.beam_size = int(parts[1])
+                print(f"  beam_size = {args.beam_size}")
             elif cmd == ":temp" and len(parts) == 2:
-                temperature = float(parts[1])
-                args.temperature = temperature
-                print(f"  temperature = {temperature}")
+                args.temperature = float(parts[1])
+                print(f"  temperature = {args.temperature}")
             elif cmd == ":topp" and len(parts) == 2:
-                top_p = float(parts[1])
-                args.top_p = top_p
-                print(f"  top_p = {top_p}")
+                args.top_p = float(parts[1])
+                print(f"  top_p = {args.top_p}")
             elif cmd == ":maxlen" and len(parts) == 2:
-                max_new_tokens = int(parts[1])
-                args.max_new_tokens = max_new_tokens
-                print(f"  max_new_tokens = {max_new_tokens}")
-            elif cmd == ":steps" and len(parts) == 2:
-                decode_steps = int(parts[1])
-                args.decode_steps = decode_steps
-                print(f"  decode_steps = {decode_steps}")
+                args.max_new_tokens = int(parts[1])
+                print(f"  max_new_tokens = {args.max_new_tokens}")
             else:
                 print(f"  Unknown command: {cmd}  (type :help)")
             continue
@@ -180,18 +151,6 @@ def parse_args(argv=None):
     p.add_argument("--direction", choices=sorted(DIRECTIONS), default=DEFAULT_DIRECTION,
                    help=f"Translation direction (default: {DEFAULT_DIRECTION}).")
 
-    # Model choice
-    p.add_argument("--model-type", choices=["ar", "diffusion"], default="ar",
-                   help="'ar' = autoregressive (default, released model). "
-                        "'diffusion' = experimental non-autoregressive model — same size, "
-                        "trades some quality for much faster CPU decoding. Requires "
-                        "--local-dir pointed at scripts/export_diffusion_checkpoint.py's "
-                        "output (or --repo-id, if you've published diffusion weights).")
-    p.add_argument("--decode-steps", type=int, default=DEFAULT_DECODE_STEPS,
-                   help=f"Diffusion only: number of Mask-Predict denoising passes "
-                        f"(default: {DEFAULT_DECODE_STEPS}). Higher = better quality, still "
-                        f"a fixed, parallel cost.")
-
     # Model source
     p.add_argument("--repo-id", type=str, default=None,
                    help="Hugging Face repo id to load weights from.")
@@ -200,17 +159,17 @@ def parse_args(argv=None):
     p.add_argument("--device", type=str, default=None,
                    help="cuda | cpu (default: auto-detect).")
 
-    # Decoding (autoregressive model only)
+    # Decoding
     p.add_argument("--mode", choices=["greedy", "beam", "sample"], default="greedy",
-                   help="AR model only. Decoding strategy (default: greedy).")
+                   help="Decoding strategy (default: greedy).")
     p.add_argument("--beam-size", type=int, default=5,
-                   help="AR model only. Number of beams for beam search (default: 5).")
+                   help="Number of beams for beam search (default: 5).")
     p.add_argument("--temperature", type=float, default=1.0,
-                   help="AR model only. Softmax temperature for sampling (default: 1.0).")
+                   help="Softmax temperature for sampling (default: 1.0).")
     p.add_argument("--top-p", type=float, default=0.95,
-                   help="AR model only. Nucleus top-p for sampling (default: 0.95).")
+                   help="Nucleus top-p for sampling (default: 0.95).")
     p.add_argument("--max-new-tokens", type=int, default=128,
-                   help="AR model only. Maximum output tokens to generate (default: 128).")
+                   help="Maximum output tokens to generate (default: 128).")
 
     return p.parse_args(argv)
 
@@ -218,15 +177,9 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
 
-    if args.model_type == "diffusion":
-        translator = DiffusionTranslator(
-            repo_id=args.repo_id, local_dir=args.local_dir, device=args.device,
-            steps=args.decode_steps,
-        )
-    else:
-        translator = NetraTranslator(
-            repo_id=args.repo_id, local_dir=args.local_dir, device=args.device
-        )
+    translator = NetraTranslator(
+        repo_id=args.repo_id, local_dir=args.local_dir, device=args.device
+    )
 
     if args.text is not None:
         t0 = time.perf_counter()

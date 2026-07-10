@@ -69,17 +69,21 @@ def is_main(rank: int) -> bool:
 # ============================================================
 
 ROOT           = Path(__file__).resolve().parent.parent.parent
-TRAIN_FILE     = ROOT / "data/processed/bilingual_train.jsonl"
-VALID_FILE     = ROOT / "data/processed/bilingual_valid.jsonl"
-TOKENIZER_PATH = ROOT / "tokenizer/spm_32k.model"
+# Case-normalized + Khmer word-segmented dataset (see 08c_build_casenorm_dataset.py),
+# paired with the matching *_kmseg SentencePiece model (see 07_train_tokenizer.py).
+TRAIN_FILE     = ROOT / "data/processed/combined_casenorm_kmseg_train.jsonl"
+VALID_FILE     = ROOT / "data/processed/combined_casenorm_kmseg_valid.jsonl"
+TOKENIZER_PATH = ROOT / "tokenizer/spm_32k_kmseg.model"
 
 # Output directory for THIS run's checkpoints — kept separate from
 # checkpoints_distill/ so the two training histories never collide.
 CKPT_DIR       = ROOT / "checkpoints"
 LOG_FILE       = ROOT / "train_log.jsonl"
 
-# No base checkpoint — training from scratch with the expanded dataset.
-BASE_CKPT      = ROOT / "checkpoints/best/checkpoint.pt"
+# No base checkpoint — training the new RoPE/RMSNorm/deep-shallow architecture
+# from scratch. (The old checkpoints/best is a different architecture and cannot
+# be loaded into this model.) Set to a Path to warm-start from compatible weights.
+BASE_CKPT      = None
 
 
 # ============================================================
@@ -87,10 +91,11 @@ BASE_CKPT      = ROOT / "checkpoints/best/checkpoint.pt"
 # ============================================================
 
 CFG = dict(
-    # model
+    # model — deep encoder / shallow decoder (Kasai et al. 2021); RoPE + RMSNorm
+    # + shared embeddings are baked into netra_nmt.model.NetraNMT.
     d_model    = 512,
-    enc_layers = 6,
-    dec_layers = 6,
+    enc_layers = 12,
+    dec_layers = 2,
     n_heads    = 8,
     ffn_dim    = 2048,
     max_len    = 256,
@@ -100,14 +105,16 @@ CFG = dict(
     max_len_tokens   = 256,   # truncation length
     batch_size       = 32,    # per GPU
     grad_accum_steps = 2,     # effective batch = batch_size * world * grad_accum
-    epochs           = 1,
+    epochs           = 2,
 
     # save a rolling "latest" checkpoint every N gradient steps (overrides previous)
     save_every_steps = 2000,
 
     # ── LR schedule — step-based linear warmup → cosine decay ────────────────
-    warmup_steps     = 1000,
-    peak_lr          = 1e-4,
+    # Deeper (12-layer) encoder with Pre-Norm/RMSNorm tolerates a higher peak LR
+    # and a longer warmup than the previous 6/6 model (1e-4 / 1000-step warmup).
+    warmup_steps     = 2000,
+    peak_lr          = 3e-4,
     min_lr           = 1e-7,
     # total_steps = cosine decay horizon (steps). None → derive from epochs.
     # max_steps   = hard stop after this many global steps. None → run full epochs.
@@ -917,6 +924,7 @@ def main():
         ffn_dim    = cfg["ffn_dim"],
         max_len    = cfg["max_len"],
         dropout    = cfg["dropout"],
+        pad_id     = cfg["pad_id"],
     ).to(device)
 
     if cfg["compile_model"] and hasattr(torch, "compile"):
@@ -986,7 +994,7 @@ def main():
         if is_main(rank):
             print(f"  Start epoch {start_epoch}  |  global_step {global_step}  |  best_val {best_val:.4f}")
 
-    elif BASE_CKPT.exists():
+    elif BASE_CKPT is not None and BASE_CKPT.exists():
         # First run of this fine-tuning phase — load weights only,
         # fresh optimizer/scaler/schedule
         if is_main(rank):

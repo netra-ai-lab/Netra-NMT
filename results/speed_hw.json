@@ -1,0 +1,50 @@
+[
+  {
+    "model": "Netra-NMT-77M (Ours)",
+    "device": "cpu",
+    "greedy_tok_s": 311.7,
+    "greedy_ms_sent": 65.6,
+    "beam_tok_s": 28.0,
+    "beam_ms_sent": 735.2
+  },
+  {
+    "model": "NLLB-350M (EN-KM)",
+    "device": "cpu",
+    "greedy_tok_s": 32.5,
+    "greedy_ms_sent": 550.8,
+    "beam_tok_s": 22.8,
+    "beam_ms_sent": 802.7
+  },
+  {
+    "model": "NLLB-600M",
+    "device": "cpu",
+    "greedy_tok_s": 20.9,
+    "greedy_ms_sent": 1074.9,
+    "beam_tok_s": 16.0,
+    "beam_ms_sent": 1567.5
+  },
+  {
+    "model": "Netra-NMT-77M (Ours)",
+    "device": "cuda",
+    "greedy_tok_s": 1384.5,
+    "greedy_ms_sent": 14.8,
+    "beam_tok_s": 142.0,
+    "beam_ms_sent": 144.3
+  },
+  {
+    "model": "NLLB-350M (EN-KM)",
+    "device": "cuda",
+    "greedy_tok_s": 232.7,
+    "greedy_ms_sent": 77.2,
+    "beam_tok_s": 174.2,
+    "beam_ms_sent": 105.2
+  },
+  {
+    "model": "NLLB-600M",
+    "device": "cuda",
+    "greedy_tok_s": 149.6,
+    "greedy_ms_sent": 150.4,
+    "beam_tok_s": 112.7,
+    "beam_ms_sent": 223.0
+  }
+]

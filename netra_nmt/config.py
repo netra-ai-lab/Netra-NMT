@@ -15,11 +15,6 @@ from pathlib import Path
 # --------------------------------------------------------------------------
 HF_REPO_ID = "Darayut/netra-nmt-small"
 
-# Experimental non-autoregressive (diffusion) model — see netra_nmt.diffusion_*.
-# Same override pattern: NetraTranslator/DiffusionTranslator(repo_id=...) or
-# NETRA_NMT_DIFFUSION_REPO_ID.
-HF_DIFFUSION_REPO_ID = "Darayut/netra-nmt-small-diffusion"
-
 WEIGHTS_FILENAME = "model.safetensors"
 CONFIG_FILENAME = "config.json"
 SPM_FILENAME = "spm_32k.model"
@@ -43,16 +38,22 @@ class ModelConfig:
 
     vocab_size: int = 32000
     d_model: int = 512
-    enc_layers: int = 6
-    dec_layers: int = 6
+    enc_layers: int = 12          # deep encoder / shallow decoder (Kasai et al. 2021)
+    dec_layers: int = 2
     n_heads: int = 8
     ffn_dim: int = 2048
-    max_len: int = 256
+    max_len: int = 256            # training truncation length (RoPE has no hard cap)
 
     # special token ids (must match the SentencePiece model)
     pad_id: int = 0
     bos_id: int = 2
     eos_id: int = 3
+
+    # Self-describing architecture flags (informational; the model is fixed to
+    # this recipe). Older configs without them still load via from_json.
+    pos_encoding: str = "rope"
+    norm: str = "rmsnorm"
+    tie_all_embeddings: bool = True
 
     lang_markers: dict = field(default_factory=lambda: dict(LANG_MARKERS))
     dtype: str = "float16"

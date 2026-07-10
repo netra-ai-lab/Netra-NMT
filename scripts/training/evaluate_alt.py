@@ -40,13 +40,14 @@ from tqdm import tqdm
 SCRIPTS_DIR    = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 ROOT           = SCRIPTS_DIR.parent.parent
-TOKENIZER_PATH = ROOT / "tokenizer" / "spm_32k.model"
-DEFAULT_CKPT   = ROOT / "checkpoints_human_finetune" / "epoch_13" / "checkpoint.pt"
+# Khmer-segmented tokenizer used by the current model.
+TOKENIZER_PATH = ROOT / "tokenizer" / "spm_32k_kmseg.model"
+DEFAULT_CKPT   = ROOT / "checkpoints_rope" / "best" / "checkpoint.pt"
 
 from inference import load_model, beam_search   # load_model handles _orig_mod. stripping
 from netra_nmt.model import NetraNMT as MiniNLLB
-from netra_nmt.diffusion_model import DiffusionNMT
-from netra_nmt.diffusion_decoding import diffusion_decode
+from netra_nmt.textnorm import normalize_en_source
+from netra_nmt.khseg import segment_km, desegment_km
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
@@ -59,12 +60,6 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--checkpoint",     type=Path,  default=DEFAULT_CKPT,
                    help=f"Path to checkpoint.pt (default: {DEFAULT_CKPT}).")
-    p.add_argument("--model-type",     type=str,   default="ar",
-                   choices=["ar", "diffusion"],
-                   help="'ar' = autoregressive NetraNMT (default), "
-                        "'diffusion' = non-autoregressive DiffusionNMT (Mask-Predict decode).")
-    p.add_argument("--decode-steps",   type=int,   default=10,
-                   help="Diffusion only: number of Mask-Predict denoising passes (default: 10).")
     p.add_argument("--batch-size",     type=int,   default=32,
                    help="Source sentences per forward pass (default: 32).")
     p.add_argument("--max-new-tokens", type=int,   default=120,
@@ -89,6 +84,8 @@ def parse_args() -> argparse.Namespace:
                    help="Skip khmercut Khmer word segmentation (disables kmBLEU and Khmer TER).")
     p.add_argument("--no-bertscore",   action="store_true",
                    help="Skip BERTScore (avoids the xlm-roberta-base download / bert_score dep).")
+    p.add_argument("--tokenizer",      type=Path,  default=TOKENIZER_PATH,
+                   help=f"SentencePiece model (default: {TOKENIZER_PATH.name}).")
     return p.parse_args()
 
 
@@ -238,75 +235,6 @@ def decode_batch(
     return results
 
 
-# ── diffusion model loading ───────────────────────────────────────────────────
-
-def load_diffusion_model(ckpt_path: Path, device: torch.device) -> tuple[DiffusionNMT, dict]:
-    """Load a checkpoint saved by 12_train_diffusion.py. Returns (model, cfg_dict)."""
-    if not ckpt_path.exists():
-        raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-
-    print(f"Loading diffusion checkpoint: {ckpt_path}")
-    ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
-    cfg = ckpt["cfg"]
-    vocab_size = ckpt["vocab_size"]
-
-    model = DiffusionNMT(
-        vocab_size=vocab_size, d_model=cfg["d_model"], enc_layers=cfg["enc_layers"],
-        dec_layers=cfg["dec_layers"], n_heads=cfg["n_heads"], ffn_dim=cfg["ffn_dim"],
-        max_len=cfg["max_len"], dropout=0.0,
-    ).to(device)
-
-    state_dict = ckpt["model"]
-    if any(k.startswith("_orig_mod.") for k in state_dict):
-        state_dict = {k.replace("_orig_mod.", "", 1): v for k, v in state_dict.items()}
-    model.load_state_dict(state_dict)
-    model.eval()
-
-    trained_epochs = ckpt.get("epoch", "?")
-    val_loss = ckpt.get("val_loss", float("nan"))
-    print(f"  Trained epochs : {trained_epochs + 1 if isinstance(trained_epochs, int) else trained_epochs}")
-    print(f"  Val loss       : {val_loss:.4f}")
-    print(f"  Vocab size     : {vocab_size:,}")
-    print(f"  Parameters     : {sum(p.numel() for p in model.parameters()):,}")
-    return model, cfg
-
-
-@torch.no_grad()
-def translate_batch_diffusion(
-    sentences: list[str],
-    prefix: str,
-    model: DiffusionNMT,
-    sp: spm.SentencePieceProcessor,
-    cfg: dict,
-    device: torch.device,
-    batch_size: int,
-    decode_steps: int,
-) -> list[str]:
-    """Translate with the non-autoregressive Mask-Predict decoder."""
-    pad_id = cfg["pad_id"]
-    eos_id = cfg["eos_id"]
-    max_len = cfg["max_len"]
-
-    all_translations: list[str] = []
-    model.eval()
-
-    for start in tqdm(
-        range(0, len(sentences), batch_size),
-        desc=f"  Diffusion K={decode_steps} ({prefix})",
-        unit="batch",
-    ):
-        batch = sentences[start : start + batch_size]
-        prefixed = [f"{prefix} {s}" for s in batch]
-        input_ids, src_mask = encode_batch(sp, prefixed, max_len, pad_id, device)
-        out_ids = diffusion_decode(
-            model, input_ids, src_key_padding_mask=src_mask,
-            steps=decode_steps, pad_id=pad_id, eos_id=eos_id,
-        )
-        all_translations.extend(sp.decode([int(t) for t in ids]) for ids in out_ids)
-
-    return all_translations
-
-
 # ── core translation loop ─────────────────────────────────────────────────────
 
 @torch.no_grad()
@@ -334,6 +262,17 @@ def translate_batch(
 
     all_translations: list[str] = []
     model.eval()
+
+    # Match training-time source preprocessing (casenorm + Khmer segmentation);
+    # the prefix names the target language. Khmer output is de-segmented below.
+    if prefix == "<2km>":        # en2km: English source, Khmer target
+        sentences = [normalize_en_source(s) for s in sentences]
+        target_is_km = True
+    elif prefix == "<2en>":      # km2en: Khmer source, English target
+        sentences = [segment_km(s) for s in sentences]
+        target_is_km = False
+    else:
+        target_is_km = False
 
     if beam_size == 1:
         # ── batched greedy ────────────────────────────────────────────────────
@@ -373,6 +312,10 @@ def translate_batch(
             # beam_search returns a list of token ids including BOS; strip special tokens
             clean = [t for t in tokens if t not in (bos_id, eos_id, pad_id)]
             all_translations.append(sp.decode(clean))
+
+    # Restore natural (spaceless) Khmer before scoring against natural references.
+    if target_is_km:
+        all_translations = [desegment_km(t) for t in all_translations]
 
     return all_translations
 
@@ -577,13 +520,7 @@ def print_results_table(results: list[dict], dataset_label: str = "mutiyama/alt"
     print()
     print("═" * len(header))
     _bs = results[0].get("beam_size") if results else None
-    _ds = results[0].get("decode_steps") if results else None
-    if _ds is not None:
-        _mode = f"diffusion K={_ds}"
-    elif _bs and _bs > 1:
-        _mode = f"beam={_bs}"
-    else:
-        _mode = "greedy"
+    _mode = f"beam={_bs}" if _bs and _bs > 1 else "greedy"
     print(f"  Evaluation on {dataset_label}  ({_mode} decoding)")
     print("═" * len(header))
     print(header)
@@ -620,25 +557,20 @@ def main() -> None:
     print(f"Device: {device}")
 
     # Tokenizer
-    if not TOKENIZER_PATH.exists():
-        sys.exit(f"Tokenizer not found: {TOKENIZER_PATH}")
+    if not args.tokenizer.exists():
+        sys.exit(f"Tokenizer not found: {args.tokenizer}")
     sp = spm.SentencePieceProcessor()
-    sp.load(str(TOKENIZER_PATH))
+    sp.load(str(args.tokenizer))
 
     # Model (load_model from inference.py already strips _orig_mod. prefix)
-    is_diffusion = args.model_type == "diffusion"
-    if is_diffusion:
-        model, cfg = load_diffusion_model(args.checkpoint, device)
-        max_new_tokens = None   # diffusion predicts its own output length
-    else:
-        model, cfg = load_model(args.checkpoint, device)
-        # Cap decoder steps to stay within positional embedding range (0 … max_len-1)
-        max_new_tokens = min(args.max_new_tokens, cfg["max_len"] - 1)
-        if max_new_tokens < args.max_new_tokens:
-            print(
-                f"  [warn] max_new_tokens capped {args.max_new_tokens} → {max_new_tokens}"
-                f" (positional embedding limit: {cfg['max_len']})"
-            )
+    model, cfg = load_model(args.checkpoint, device)
+    # Cap decoder steps to stay within the training length (0 … max_len-1)
+    max_new_tokens = min(args.max_new_tokens, cfg["max_len"] - 1)
+    if max_new_tokens < args.max_new_tokens:
+        print(
+            f"  [warn] max_new_tokens capped {args.max_new_tokens} → {max_new_tokens}"
+            f" (max_len: {cfg['max_len']})"
+        )
 
     # Dataset
     if args.dataset == "rinabuoy":
@@ -665,40 +597,27 @@ def main() -> None:
     results = []
 
     beam_size = args.beam_size
-    if is_diffusion:
-        mode_str = f"diffusion K={args.decode_steps}"
-    else:
-        mode_str = f"beam={beam_size}" if beam_size > 1 else "greedy"
+    mode_str = f"beam={beam_size}" if beam_size > 1 else "greedy"
     print(f"\nDecoding mode: {mode_str}")
 
     # ── EN → KH ──────────────────────────────────────────────────────────────
     print("\n[1/2] EN → KH")
-    if is_diffusion:
-        enkh_hyps = translate_batch_diffusion(en_sents, "<2km>", model, sp, cfg, device,
-                                              args.batch_size, args.decode_steps)
-    else:
-        enkh_hyps = translate_batch(en_sents, "<2km>", model, sp, cfg, device,
-                                    args.batch_size, max_new_tokens, beam_size)
+    enkh_hyps = translate_batch(en_sents, "<2km>", model, sp, cfg, device,
+                                args.batch_size, max_new_tokens, beam_size)
     enkh_metrics = compute_metrics(enkh_hyps, kh_sents, en_sents, "EN→KH",
                                    comet_model, khmer_segmenter,
                                    compute_bertscore=not args.no_bertscore)
-    enkh_metrics["beam_size"] = beam_size if not is_diffusion else None
-    enkh_metrics["decode_steps"] = args.decode_steps if is_diffusion else None
+    enkh_metrics["beam_size"] = beam_size
     results.append(enkh_metrics)
 
     # ── KH → EN ──────────────────────────────────────────────────────────────
     print("\n[2/2] KH → EN")
-    if is_diffusion:
-        khen_hyps = translate_batch_diffusion(kh_sents, "<2en>", model, sp, cfg, device,
-                                              args.batch_size, args.decode_steps)
-    else:
-        khen_hyps = translate_batch(kh_sents, "<2en>", model, sp, cfg, device,
-                                    args.batch_size, max_new_tokens, beam_size)
+    khen_hyps = translate_batch(kh_sents, "<2en>", model, sp, cfg, device,
+                                args.batch_size, max_new_tokens, beam_size)
     khen_metrics = compute_metrics(khen_hyps, en_sents, kh_sents, "KH→EN",
                                    comet_model, khmer_segmenter,
                                    compute_bertscore=not args.no_bertscore)
-    khen_metrics["beam_size"] = beam_size if not is_diffusion else None
-    khen_metrics["decode_steps"] = args.decode_steps if is_diffusion else None
+    khen_metrics["beam_size"] = beam_size
     results.append(khen_metrics)
 
     # ── Output ────────────────────────────────────────────────────────────────
@@ -706,12 +625,10 @@ def main() -> None:
 
     output_data = {
         "checkpoint":      str(args.checkpoint),
-        "model_type":      args.model_type,
         "dataset":         dataset_label,
         "split":           args.split,
         "batch_size":      args.batch_size,
         "max_new_tokens":  max_new_tokens,
-        "decode_steps":    args.decode_steps if is_diffusion else None,
         "results":         results,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

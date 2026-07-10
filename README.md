@@ -29,17 +29,17 @@
 </h2>
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/inference_benchmark.png" style="width: 1000px" align=center>
+<img src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/speed_benchmark.png" style="width: 1000px" align=center>
 </p>
 
 <p align="center">
-<a href="">Inference Speed Benchmark on CPU Using Greedy, and Beam Search Decoding Strategy</a>       
+<a href="">Inference Speed Benchmark on CPU (Intel i7-13700KF) and GPU (RTX 3060) using Greedy and Beam-5 decoding</a>       
 </p>
 
 ## 1. Abstract
-This repository present Netra-NMT a 90M-parameter encoder-decoder transformer-based model trained on **220 million tokens** of English-Khmer parallel text (4.2M bidirectional examples). The encoder uses bidirectional self-attention, much like BERT, to capture global contextual representation. The decoder perform autoregressive generation through causal self-attention and encoder-decoder cross attention.
+This repository presents Netra-NMT, a compact **77M-parameter** encoder-decoder transformer-based model trained from scratch on **220 million tokens** of English-Khmer parallel text (4.2M bidirectional examples). The encoder uses bidirectional self-attention, much like BERT, to capture global contextual representation. The decoder performs autoregressive generation through causal self-attention and encoder-decoder cross-attention.
 
-Unlike traditional transformer block, Netra-NMT incorporates several architectural improvements, including Pre-Layer Normalization (Pre-LN) for stable optimization, SwiGLU feed-forward networks for enhanced representational capacity, and weight tying between the decoder embedding layer and output projection head to reduce parameter redundancy.
+Netra-NMT adopts a modern transformer recipe: **rotary position embeddings (RoPE)** in self-attention (no learned position table), **RMSNorm** with Pre-Normalization for stable optimization, **SwiGLU** feed-forward networks, and a **single embedding table shared** across the encoder input, decoder input, and tied output projection. It uses a **deep-encoder / shallow-decoder** layout (12 encoder layers, 2 decoder layers) which — combined with a **KV cache** for O(T) incremental decoding — delivers autoregressive quality at a fraction of the decoding latency (Kasai et al., 2021). Khmer text is word-segmented with **khmercut** before tokenization, so the shared 32K SentencePiece vocabulary sees real word boundaries.
 
 ## 2. Dataset
 
@@ -62,6 +62,8 @@ Raw data was cleaned through the following pipeline:
 1. **Deduplication**: exact duplicate pairs removed across all sources.
 2. **Length filtering**: pairs with extreme source/target length mismatches were discarded.
 3. **Empty/null removal**: pairs where either side was empty or below a minimum token count were dropped.
+4. **English source case-normalization**: English is NFC-normalized, whitespace-collapsed, and lowercased **only when it is the `en2km` source**, so `"I love Cambodia"` and `"i love cambodia"` map to identical model inputs. English kept as a `km2en` *target* retains its natural casing.
+5. **Khmer word segmentation**: Khmer (which is written without spaces) is segmented with **khmercut** wherever it appears — as the `en2km` target and the `km2en` source — matching the segmented tokenizer. Khmer output is de-segmented back to natural text at inference time.
 
 After cleaning, each surviving pair is duplicated in both directions (`EN→KM` and `KM→EN`) with a direction prefix token (`<2km>` / `<2en>`), yielding ~4.2 million training examples.
 
@@ -72,77 +74,42 @@ After cleaning, each surviving pair is duplicated in both directions (`EN→KM` 
   <p><em>Figure 1: Overview of the Netra-NMT encoder-decoder architecture. The encoder (left) processes the source sentence with bidirectional self-attention; the decoder (right) generates the target sentence autoregressively via causal self-attention and cross-attention over the encoder output. Both sides share a 32K SentencePiece tokenizer.</em></p>
 </div>
 
-Netra-NMT follows a standard encoder-decoder transformer architecture with several modifications for training stability and parameter efficiency.
+Netra-NMT follows an encoder-decoder transformer architecture modernized for training stability, parameter efficiency, and low-latency decoding.
 
-**Encoder**  takes the source sentence tokenized by the shared 32K SentencePiece tokenizer, adds learned positional embeddings, and passes the sequence through 6 transformer layers with *bidirectional* self-attention (every token attends to every other token, similar to BERT). A final Pre-LN layer norm is applied to the encoder output before it is passed to the decoder via cross-attention.
+**Encoder** takes the source sentence tokenized by the shared 32K SentencePiece tokenizer (Khmer is word-segmented with khmercut beforehand), and passes the sequence through **12** transformer layers with *bidirectional* self-attention (every token attends to every other token, similar to BERT). Positions are encoded with **rotary embeddings (RoPE)** applied to the queries and keys inside self-attention — there is no learned position table. A final RMSNorm is applied to the encoder output before it is passed to the decoder via cross-attention.
 
-**Decoder** takes the (partially generated) target sentence through the same tokenizer, adds positional embeddings, and passes it through 6 transformer layers. Each decoder layer applies three sub-layers in order: (1) *causal* (masked) self-attention over previously generated tokens, (2) cross-attention over the full encoder output, and (3) a feed-forward block. A final Pre-LN layer norm feeds into the tied linear projection head to produce output token probabilities.
+**Decoder** takes the (partially generated) target sentence through the same tokenizer and passes it through only **2** transformer layers. Each decoder layer applies three sub-layers in order: (1) *causal* (masked) self-attention with RoPE over previously generated tokens, backed by a **KV cache** for O(T) incremental decoding, (2) cross-attention over the full encoder output, and (3) a SwiGLU feed-forward block. A final RMSNorm feeds into the tied projection head. The **deep-encoder / shallow-decoder** split (12 vs 2) follows Kasai et al. (2021): most of the modeling capacity lives in the parallelizable encoder, while the thin decoder — the part that runs sequentially at inference — keeps per-step cost low without sacrificing quality.
 
 **Architectural improvements over the vanilla transformer:**
 
 | Feature | Detail |
 |---------|--------|
-| Pre-Layer Normalization | Layer norm applied *before* each sub-layer (Pre-LN) rather than after, improving gradient flow and training stability |
-| SwiGLU FFN | Feed-forward blocks use the SwiGLU activation instead of ReLU, providing richer representational capacity at no parameter cost |
-| Weight tying | The decoder input embedding matrix is shared with the output linear projection head, reducing redundant parameters |
+| Rotary Position Embeddings (RoPE) | Positions encoded by rotating Q/K inside self-attention — no learned position table, and generalizes past the training length |
+| RMSNorm (Pre-Norm) | Root-mean-square normalization applied *before* each sub-layer; as stable as LayerNorm and cheaper |
+| SwiGLU FFN | Feed-forward blocks use the SwiGLU activation instead of ReLU, providing richer representational capacity |
+| Shared embeddings | One embedding table is shared across the encoder input, decoder input, and the tied output projection head |
+| Deep encoder / shallow decoder | 12-layer encoder + 2-layer decoder (Kasai et al., 2021) — retains quality while sharply cutting sequential decoding cost |
+| KV cache | Incremental decoding caches past keys/values, making generation O(T) instead of O(T²) |
+| Khmer word segmentation | Khmer is segmented with khmercut before SentencePiece so the tokenizer learns real word boundaries |
 
 **Hyperparameters:**
 
 | | |
 |---|---|
 | d_model | 512 |
-| Encoder / Decoder layers | 6 / 6 |
+| Encoder / Decoder layers | 12 / 2 |
 | Attention heads | 8 |
 | FFN hidden size | 2048 |
-| Vocabulary | 32K (SentencePiece unigram, shared) |
-| Total parameters | ~89.7M |
+| Position encoding | Rotary (RoPE) |
+| Normalization | RMSNorm (Pre-Norm) |
+| Vocabulary | 32K (SentencePiece unigram, shared, Khmer-segmented) |
+| Total parameters | ~77M |
 
 ## 4. Evaluation Results
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/metrics_benchmark.png" style="width: 1000px" align=center>
 </p>
-
-## 5. Diffusion model (experimental)
-
-An alternative, **non-autoregressive** decoder is available as an opt-in model: same encoder-decoder
-size (~89.85M params, vs the AR model's 89.72M — the only difference is a small length-prediction head),
-but instead of generating one token at a time, it starts from an all-`[MASK]` target and fills it in
-over a fixed number of parallel denoising passes (discrete/absorbing-state diffusion, Mask-Predict
-decoding). The point isn't higher quality — it's **decoding cost that doesn't grow with sentence
-length**, which matters most on CPU.
-
-**Honest trade-off** (`mutiyama/alt` test, K=10 denoising passes — the default — single RTX 3060
-CPU-side timing):
-
-| Direction | Metric | Autoregressive | Diffusion (K=10) |
-|---|---|---|---|
-| EN→KH | spBLEU | 24.92 | 16.42 |
-| EN→KH | chrF++ | 37.09 | 30.52 |
-| KH→EN | spBLEU | 18.10 | 14.00 |
-| KH→EN | chrF++ | 45.16 | 41.94 |
-
-| Model | Median CPU latency / sentence | Speedup vs AR |
-|---|---|---|
-| AR (greedy) | 217.5 ms | 1.0x |
-| Diffusion K=1 | 17.9 ms | 12.2x |
-| Diffusion K=2 | 28.1 ms | 7.7x |
-| Diffusion K=4 | 48.0 ms | 4.5x |
-| Diffusion K=6 | 71.0 ms | 3.1x |
-| Diffusion K=10 | 113.7 ms | 1.9x |
-| Diffusion K=20 | 221.4 ms | 1.0x |
-
-Lower K is faster but less accurate (K controls how many refinement passes the model gets); pick K to
-suit your latency/quality budget. **K=10 is the recommended default** — pushing K higher keeps eroding
-the latency advantage (K=20 already lands at roughly AR's own latency, at lower quality, so there's no
-reason to go past K≈10-15). **The autoregressive model remains the default and recommended choice** —
-the diffusion model is there for cases where fixed, low CPU latency matters more than peak quality.
-
-Weights are published at [`Darayut/netra-nmt-small-diffusion`](https://huggingface.co/Darayut/netra-nmt-small-diffusion)
-and download automatically on first use, exactly like the default model — `DiffusionTranslator()` /
-`--model-type diffusion` work with no extra setup. See the Usage sections below. (If you trained your
-own diffusion checkpoint, `scripts/export_diffusion_checkpoint.py --checkpoint <path> --out <dir>`
-produces a local export you can point `--local-dir` at instead.)
 
 ## Install
 
@@ -170,7 +137,7 @@ under `~/.cache/huggingface`.
 from netra_nmt import NetraTranslator
 
 t = NetraTranslator()                       # auto-detect GPU/CPU; downloads weights once
-t.translate("Hello, how are you?", direction="en2km")   # → "សួស្តី សុខសប្បាយអត់?"
+t.translate("Hello, how are you?", direction="en2km")   # → "សួស្តីសុខសប្បាយអត់?"
 t.translate("ខ្ញុំស្រឡាញ់ប្រទេសរបស់ខ្ញុំ។", direction="km2en")
 
 # Batch + decoding options
@@ -188,16 +155,6 @@ translate("Hello", direction="en2km")
 `direction` is `"en2km"` (English→Khmer) or `"km2en"` (Khmer→English).
 `mode` is `"greedy"` (default), `"beam"`, or `"sample"`.
 
-Experimental diffusion model (see [section 5](#5-diffusion-model-experimental)) — downloads automatically,
-same as `NetraTranslator`:
-
-```python
-from netra_nmt import DiffusionTranslator
-
-t = DiffusionTranslator(steps=10)
-t.translate("I love Cambodia", direction="en2km")
-```
-
 ### 2. CLI
 
 ```bash
@@ -212,9 +169,6 @@ netra-translate --file input.txt --output output.txt --direction en2km
 
 # Interactive REPL (omit --text / --file):
 netra-translate
-
-# Experimental diffusion model (downloads automatically — see section 5):
-netra-translate --text "Hello" --model-type diffusion --decode-steps 10
 ```
 
 ### 3. Web app + REST API (FastAPI)
@@ -223,26 +177,15 @@ netra-translate --text "Hello" --model-type diffusion --decode-steps 10
 netra-web                      # serves the web UI + API at http://127.0.0.1:8000
 netra-web --port 8080 --device cpu
 netra-web --local-dir export   # load weights from a local export dir
-
-# also enable the experimental diffusion model (opt-in — off by default, since
-# it's a second ~90M model's worth of extra memory/startup most deployments
-# won't use; weights still download automatically once enabled):
-netra-web --enable-diffusion
 ```
 
-A two-pane translation site (source left, output right, EN⇄KM swap button, plus a "Model" selector
-that appears automatically once the diffusion model is enabled) and a JSON API:
+A two-pane translation site (source left, output right, EN⇄KM swap button) and a JSON API:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/translate \
   -H 'Content-Type: application/json' \
   -d '{"text": "Hello, how are you?", "direction": "en2km"}'
 # {"translation": "...", "direction": "en2km"}
-
-# diffusion model (400 if the server wasn't started with --enable-diffusion):
-curl -X POST http://127.0.0.1:8000/api/translate \
-  -H 'Content-Type: application/json' \
-  -d '{"text": "Hello, how are you?", "direction": "en2km", "model_type": "diffusion", "decode_steps": 10}'
 ```
 
 Requires the `web` extra (`pip install "netra-nmt[web]"`).

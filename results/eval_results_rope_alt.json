@@ -1,47 +1,47 @@
 {
-  "checkpoint": "checkpoints_diffusion/best/checkpoint.pt",
-  "model_type": "diffusion",
+  "checkpoint": "checkpoints_rope/best/checkpoint.pt",
+  "model_type": "ar",
   "dataset": "mutiyama/alt",
   "split": "test",
   "batch_size": 32,
-  "max_new_tokens": null,
-  "decode_steps": 20,
+  "max_new_tokens": 120,
+  "decode_steps": null,
   "results": [
     {
       "direction": "EN→KH",
-      "spbleu": 16.62,
+      "spbleu": 24.76,
       "bleu_signature": "nrefs:1|case:mixed|eff:no|tok:flores200|smooth:exp|version:2.6.0",
-      "chrf_pp": 30.77,
+      "chrf_pp": 37.14,
       "chrf_signature": "nrefs:1|case:mixed|eff:yes|nc:6|nw:2|space:no|version:2.6.0",
-      "kmbleu": 11.33,
+      "kmbleu": 17.39,
       "kmbleu_tokenize": "khmercut",
-      "ter": 67.86,
+      "ter": 62.15,
       "ter_tokenize": "khmercut",
       "comet": null,
       "comet_model": null,
       "bertscore_f1": null,
       "bertscore_model": null,
       "n_pairs": 1018,
-      "beam_size": null,
-      "decode_steps": 20
+      "beam_size": 1,
+      "decode_steps": null
     },
     {
       "direction": "KH→EN",
-      "spbleu": 14.31,
+      "spbleu": 17.49,
       "bleu_signature": "nrefs:1|case:mixed|eff:no|tok:flores200|smooth:exp|version:2.6.0",
-      "chrf_pp": 42.23,
+      "chrf_pp": 43.97,
       "chrf_signature": "nrefs:1|case:mixed|eff:yes|nc:6|nw:2|space:no|version:2.6.0",
       "kmbleu": null,
       "kmbleu_tokenize": null,
-      "ter": 74.5,
+      "ter": 74.56,
       "ter_tokenize": "tercom",
       "comet": null,
       "comet_model": null,
       "bertscore_f1": null,
       "bertscore_model": null,
       "n_pairs": 1018,
-      "beam_size": null,
-      "decode_steps": 20
+      "beam_size": 1,
+      "decode_steps": null
     }
   ]
 }

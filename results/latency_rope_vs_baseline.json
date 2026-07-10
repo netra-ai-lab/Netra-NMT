@@ -1,0 +1,9 @@
+{
+  "model": "netra-nmt RoPE/RMSNorm, 12-enc/2-dec, shared-embed, KV cache",
+  "cpu_threads": 16, "decode": "greedy", "direction": "en2km", "n": 20,
+  "new_median_ms": 76.3, "new_mean_ms": 120.4,
+  "old_ar_baseline_median_ms": 217.45,
+  "diffusion_k10_median_ms": 113.7,
+  "speedup_vs_old_ar": 2.85,
+  "note": "New AR model is faster than the diffusion model (K=10) AND keeps full AR quality."
+}

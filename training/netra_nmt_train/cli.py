@@ -1,11 +1,12 @@
-# From the Netra Lab kit (templates/repo), copied from Netra-OCR's
-# training/netra_ocr_train/cli.py. Adapt: COMMANDS -> your script modules.
-"""``netra-nmt-train``: one command for check / train / evaluate / export.
+"""``netra-nmt-train``: one command for check / prepare / evaluate / export.
 
-    netra-nmt-train check my_data/
-    netra-nmt-train train --init published --data my_data/
-    netra-nmt-train evaluate published training/runs/<run>/best.pth
-    netra-nmt-train export --model training/runs/<run>/best.pth --out bundles/model
+    netra-nmt-train check my_pairs.tsv
+    netra-nmt-train prepare my_pairs.tsv --out training/runs/<run>/data
+    netra-nmt-train evaluate published training/runs/<run>/bundles/model
+    netra-nmt-train export --model training/runs/<run>/checkpoints/best/checkpoint.pt --out bundles/model
+
+Training itself is netra_nmt_train/scripts/recipe/09_train_student.py (see
+training/train.sh and finetune.sh).
 
 The bash scripts in training/ wrap these with sensible defaults.
 """
@@ -14,7 +15,7 @@ import sys
 
 COMMANDS = {
     "check": "netra_nmt_train.scripts.check_data",
-    "train": "netra_nmt_train.scripts.train",
+    "prepare": "netra_nmt_train.scripts.prepare",
     "evaluate": "netra_nmt_train.scripts.evaluate",
     "export": "netra_nmt_train.scripts.export",
 }

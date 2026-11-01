@@ -1,5 +1,4 @@
 # From the Netra Lab kit (templates/repo), copied from Netra-OCR scripts/check_dist.py.
-# Adapt: SDIST_OK if the README file is named differently, MAX_BYTES if the package has fonts/UI.
 """Check the built wheel and sdist stay small: code, UI and fonts only.
 
     python -m build && python scripts/check_dist.py      # checks dist/*

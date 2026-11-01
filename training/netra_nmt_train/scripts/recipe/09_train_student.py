@@ -784,6 +784,14 @@ def main():
         ),
     )
     parser.add_argument(
+        "--init-weights", type=str, default=None,
+        help=(
+            "Start from these weights with a fresh optimizer and schedule (fine-tuning): "
+            "a checkpoint.pt, a release folder (model.safetensors + config.json) or "
+            "'published'. Ignored when a checkpoint to resume from exists."
+        ),
+    )
+    parser.add_argument(
         "--ckpt-dir", type=Path, default=None,
         help="Override the checkpoint output directory (default: checkpoints/).",
     )
@@ -993,6 +1001,19 @@ def main():
 
         if is_main(rank):
             print(f"  Start epoch {start_epoch}  |  global_step {global_step}  |  best_val {best_val:.4f}")
+
+    elif args.init_weights is not None:
+        from netra_nmt_train.checkpoint import load as load_release
+        if is_main(rank):
+            print(f"Initialising weights from {args.init_weights} (fresh optimizer + schedule)")
+        init_model, _, _ = load_release(args.init_weights)
+        sd = init_model.state_dict()
+        del init_model
+        if any(k.startswith("_orig_mod.") for k in dict(unwrapped.named_parameters())):
+            sd = {f"_orig_mod.{k}": v for k, v in sd.items()}      # torch.compile()d model
+        missing, unexpected = unwrapped.load_state_dict(sd, strict=False)
+        if [k for k in missing if "lm_head" not in k] or unexpected:
+            raise RuntimeError(f"--init-weights doesn't match the model: {missing[:5]} {unexpected[:5]}")
 
     elif BASE_CKPT is not None and BASE_CKPT.exists():
         # First run of this fine-tuning phase — load weights only,

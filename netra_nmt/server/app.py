@@ -129,8 +129,8 @@ def main(argv=None) -> None:
     p = argparse.ArgumentParser(prog="netra-nmt serve", description="Serve the netra-nmt web app and REST API.")
     p.add_argument("--local-dir", type=str, default=None, help="a local model folder")
     p.add_argument("--device", type=str, default=None, help="auto | cpu | cuda (default: auto)")
-    p.add_argument("--host", type=str, default="127.0.0.1")
-    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--host", type=str, default=os.environ.get("NETRA_NMT_HOST", "127.0.0.1"))
+    p.add_argument("--port", type=int, default=int(os.environ.get("NETRA_NMT_PORT", "8000")))
     args = p.parse_args(argv)
 
     if args.local_dir:

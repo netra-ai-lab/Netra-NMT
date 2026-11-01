@@ -1,0 +1,33 @@
+# From the Netra Lab kit (templates/repo), after Netra-OCR training/pyproject.toml.
+# Adapt: the task's dependencies (metric library, data tools).
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# Not published: install it from a checkout next to the package (evaluation and
+# the export parity check run the exported models with netra_nmt.inference):
+#   bash training/setup.sh       (or: pip install -e ".[cpu]" -e training)
+[project]
+name = "netra-nmt-train"
+version = "0.0.0"
+description = "Training, fine-tuning, evaluation and export for Netra NMT."
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "torch>=2.0",
+    "tqdm",
+    "numpy",
+    "datasets",        # Hugging Face training / test sets
+    "huggingface_hub", # the published checkpoint
+    "onnx",            # exporting models for the package
+    "onnxscript",
+]
+
+[project.scripts]
+netra-nmt-train = "netra_nmt_train.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["netra_nmt_train*"]
+
+[tool.setuptools.package-data]
+netra_nmt_train = ["*.json"]

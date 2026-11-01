@@ -4,19 +4,25 @@ netra_nmt.cli — command-line interface for the netra-nmt translator.
 Examples
 --------
     # Single sentence (English → Khmer is the default direction):
-    netra-translate --text "Hello, how are you?"
+    netra-nmt --text "Hello, how are you?"
 
     # Khmer → English:
-    netra-translate --text "សួស្តី, តើអ្នកសុខសប្បាយទេ?" --direction km2en
+    netra-nmt --text "សួស្តី, តើអ្នកសុខសប្បាយទេ?" --direction km2en
 
     # Translate every line of a file:
-    netra-translate --file input.txt --output output.txt --direction en2km
+    netra-nmt --file input.txt --output output.txt --direction en2km
 
     # Beam search:
-    netra-translate --text "Hello" --mode beam --beam-size 5
+    netra-nmt --text "Hello" --mode beam --beam-size 5
 
     # Interactive REPL (no --text / --file):
-    netra-translate
+    netra-nmt
+
+    # Web app + REST API (needs the server extra):
+    netra-nmt serve --port 8000
+
+    # Download the model ahead of time (then HF_HUB_OFFLINE=1 works):
+    netra-nmt download
 """
 
 from __future__ import annotations
@@ -133,8 +139,8 @@ def _translate_file(translator, in_path: Path, out_path: Path, args):
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(
-        prog="netra-translate",
-        description="Translate text with the netra-nmt EN↔KM model.",
+        prog="netra-nmt",
+        description="Translate English <-> Khmer with Netra NMT. Verbs: serve, download.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -152,12 +158,10 @@ def parse_args(argv=None):
                    help=f"Translation direction (default: {DEFAULT_DIRECTION}).")
 
     # Model source
-    p.add_argument("--repo-id", type=str, default=None,
-                   help="Hugging Face repo id to load weights from.")
     p.add_argument("--local-dir", type=Path, default=None,
-                   help="Local export directory to load weights from (skips the Hub).")
+                   help="A local model folder (netra-model.json + graphs), e.g. from training/export.sh.")
     p.add_argument("--device", type=str, default=None,
-                   help="cuda | cpu (default: auto-detect).")
+                   help="auto | cpu | cuda | cuda:N | tensorrt | openvino (default: $NETRA_NMT_DEVICE or auto).")
 
     # Decoding
     p.add_argument("--mode", choices=["greedy", "beam", "sample"], default="greedy",
@@ -174,12 +178,29 @@ def parse_args(argv=None):
     return p.parse_args(argv)
 
 
+def _download(argv) -> None:
+    p = argparse.ArgumentParser(prog="netra-nmt download",
+                                description="Download the model into the Hugging Face cache.")
+    p.add_argument("--device", default="cpu", help="fetch the files this device runs (default: cpu)")
+    args = p.parse_args(argv)
+    from . import models
+    from .inference.hub import fetch
+    from .inference.session import device_kind
+
+    path = fetch(models.source(), device_kind(args.device))
+    print(f"Model folder: {path}")
+
+
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv and argv[0] == "serve":
+        from .server import main as serve
+        return serve(argv[1:])
+    if argv and argv[0] == "download":
+        return _download(argv[1:])
     args = parse_args(argv)
 
-    translator = NetraTranslator(
-        repo_id=args.repo_id, local_dir=args.local_dir, device=args.device
-    )
+    translator = NetraTranslator(local_dir=args.local_dir, device=args.device)
 
     if args.text is not None:
         t0 = time.perf_counter()

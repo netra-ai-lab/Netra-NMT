@@ -1,57 +1,70 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "netra-nmt"
-version = "0.1.0"
-description = "A compact, from-scratch English↔Khmer neural machine translation model."
+version = "1.0.0"
+description = "Compact English <-> Khmer translation (77M parameters) on ONNX Runtime, no PyTorch."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
-authors = [{ name = "Darayut Nhem", email = "darayutnhem009@gmail.com" }]
-keywords = ["translation", "khmer", "english", "nmt", "transformer", "seq2seq"]
+license = {text = "MIT"}
+authors = [{ name = "Nhem Darayut", email = "darayutnhem009@gmail.com" }]
+keywords = ["translation", "khmer", "english", "nmt", "transformer", "onnx"]
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
 ]
 
+# The model runs on ONNX Runtime (netra_nmt/inference/): no PyTorch. It is an
+# ONNX model folder downloaded on first use from
+# https://huggingface.co/Netra-Lab/Netra-NMT (pinned in netra_nmt/models.py).
+# Pick exactly one ONNX Runtime build through the "cpu" or "gpu" extra (they
+# can't be installed side by side). khmercut segments Khmer input the way the
+# training data was built; without it Khmer -> English quality drops.
 dependencies = [
-    "torch>=2.0",
-    "sentencepiece>=0.1.99",
-    "safetensors>=0.4.0",
-    "huggingface_hub>=0.20.0",
     "numpy",
+    "sentencepiece>=0.1.99",
+    "huggingface_hub>=0.20",
+    "khmercut>=0.1.0",
 ]
 
 [project.optional-dependencies]
-web = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
-train = [
-    "datasets",
-    "pandas",
-    "pyarrow",
-    "sacrebleu>=2.3.1",
-    "bert-score>=0.3.13",
-    "unbabel-comet>=2.2.0",
-    "khmercut",
-    "accelerate",
-    "langdetect",
-    "fasttext-wheel",
-]
-
-[project.scripts]
-netra-translate = "netra_nmt.cli:main"
-netra-web = "netra_nmt.server:main"
+cpu = ["onnxruntime>=1.20"]
+gpu = ["onnxruntime-gpu>=1.20"]
+# The web app + REST API (netra-nmt serve). Add "cpu" or "gpu" for the runtime.
+server = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
+# Everything, on CPU.
+full = ["netra-nmt[cpu,server]"]
+test = ["pytest"]
 
 [project.urls]
-Homepage = "https://github.com/NDarayut/netra-nmt"
+Homepage = "https://github.com/netra-ai-lab/Netra-NMT"
+Repository = "https://github.com/netra-ai-lab/Netra-NMT"
+"Model Download" = "https://huggingface.co/Netra-Lab/Netra-NMT"
+"PyTorch weights" = "https://huggingface.co/Netra-Lab/Netra-NMT/tree/main/pytorch"
 
-[tool.hatch.build.targets.wheel]
-packages = ["netra_nmt"]
+[project.scripts]
+netra-nmt = "netra_nmt.cli:main"
 
-[tool.hatch.build.targets.wheel.force-include]
-"netra_nmt/assets/spm_32k.model" = "netra_nmt/assets/spm_32k.model"
-"netra_nmt/static/index.html" = "netra_nmt/static/index.html"
-"netra_nmt/static/netra-wordmark.png" = "netra_nmt/static/netra-wordmark.png"
-"netra_nmt/static/netra-wordmark-orange.png" = "netra_nmt/static/netra-wordmark-orange.png"
+[tool.setuptools.packages.find]
+# Only the package. Training code lives in training/ (its own package,
+# netra-nmt-train) and is never shipped.
+include = ["netra_nmt*"]
+namespaces = false
+
+[tool.setuptools]
+include-package-data = false
+
+# Models are not bundled: they're downloaded on first use.
+[tool.setuptools.package-data]
+netra_nmt = ["server/static/*.html", "server/static/*.png", "server/static/*.svg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,29 +1,24 @@
 """
-netra_nmt.translator — high-level translation API.
+netra_nmt.translator — the high-level API.
 
-Example
--------
-    from netra_nmt import NetraTranslator
+:class:`NetraTranslator` loads the model once (ONNX Runtime, no PyTorch) and
+translates in either direction. The source text is prepared exactly the way
+the training data was built:
 
-    t = NetraTranslator()                       # downloads weights on first use
-    t.translate("Hello, how are you?", direction="en2km")
-    t.translate("សួស្តី", direction="km2en")
+    en2km   English NFC, whitespace collapsed, lowercased -> "<2km> ..."
+    km2en   Khmer word-segmented with khmercut          -> "<2en> ..."
+
+and Khmer output is de-segmented (the inserted word spaces removed).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import sentencepiece as spm
-import torch
-from safetensors.torch import load_file
-
-from . import decoding
-from .config import DEFAULT_DIRECTION, DIRECTIONS, LANG_MARKERS, ModelConfig
+from . import models
+from .config import DEFAULT_DIRECTION, DIRECTIONS, MODES
 from .khseg import desegment_km, segment_km
-from .model import NetraNMT
 from .textnorm import normalize_en_source
-from .weights import resolve
 
 
 class NetraTranslator:
@@ -31,70 +26,16 @@ class NetraTranslator:
     Loads the model + tokenizer once and translates text in either direction.
 
     Args:
-        repo_id:   Hugging Face repo to pull weights from (defaults to the
-                   packaged repo id / ``NETRA_NMT_REPO_ID``).
-        local_dir: local export directory to load from instead of the Hub.
-        device:    "cuda" | "cpu" | torch.device. Auto-detected if None.
+        local_dir: a model folder (``netra-model.json`` + graphs + tokenizer),
+                   e.g. from ``training/export.sh``. Default: the pinned
+                   ``Netra-Lab/Netra-NMT`` release (or ``NETRA_NMT_BUNDLES``).
+        device:    "auto" (GPU if usable, else CPU), "cpu", "cuda", "cuda:1",
+                   "tensorrt", "openvino". Default: ``NETRA_NMT_DEVICE`` or auto.
     """
 
-    def __init__(
-        self,
-        repo_id: str | None = None,
-        local_dir: str | Path | None = None,
-        device: str | torch.device | None = None,
-    ):
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.device = torch.device(device)
-
-        weights_path, config_path, spm_path = resolve(repo_id=repo_id, local_dir=local_dir)
-
-        self.config = ModelConfig.from_json(config_path)
-
-        self.sp = spm.SentencePieceProcessor()
-        self.sp.load(str(spm_path))
-
-        # Build in fp32 and let the fp16 export upcast on load — fp32 inference
-        # is robust on both CPU and GPU; the half precision is only for storage.
-        model = NetraNMT(
-            vocab_size=self.config.vocab_size,
-            d_model=self.config.d_model,
-            enc_layers=self.config.enc_layers,
-            dec_layers=self.config.dec_layers,
-            n_heads=self.config.n_heads,
-            ffn_dim=self.config.ffn_dim,
-            max_len=self.config.max_len,
-            dropout=0.0,
-            pad_id=self.config.pad_id,
-        )
-        state_dict = load_file(str(weights_path))
-        # lm_head.weight is tied to decoder.embed.weight and intentionally not
-        # stored, so strict=False is expected here.
-        model.load_state_dict(state_dict, strict=False)
-        self.model = model.to(self.device).eval()
-
-    # -----------------------------------------------------------------
-    # internals
-    # -----------------------------------------------------------------
-
-    def _encode(self, text: str, target_lang: str):
-        marker = LANG_MARKERS[target_lang]
-        src = f"{marker} {text.strip()}"
-        ids = self.sp.encode(src, out_type=int)[: self.config.max_len]
-        if not ids:
-            raise ValueError("Input text encoded to zero tokens — is it empty?")
-        input_ids = torch.tensor([ids], dtype=torch.long, device=self.device)
-        src_mask = torch.zeros_like(input_ids, dtype=torch.bool)
-        return input_ids, src_mask
-
-    def _decode(self, ids: list[int]) -> str:
-        specials = {self.config.pad_id, self.config.bos_id, self.config.eos_id}
-        clean = [t for t in ids if t not in specials]
-        return self.sp.decode(clean)
-
-    # -----------------------------------------------------------------
-    # public API
-    # -----------------------------------------------------------------
+    def __init__(self, local_dir: str | Path | None = None, device: str | None = None):
+        self.model = models.load(local_dir, device)
+        self.device = self.model.device
 
     def translate(
         self,
@@ -106,6 +47,7 @@ class NetraTranslator:
         temperature: float = 1.0,
         top_p: float = 0.95,
         max_new_tokens: int = 128,
+        seed: int | None = None,
     ) -> str:
         """
         Translate a single string.
@@ -113,75 +55,47 @@ class NetraTranslator:
         Args:
             direction: "en2km" (English→Khmer) or "km2en" (Khmer→English).
             mode:      "greedy" | "beam" | "sample".
+            seed:      random seed for ``mode="sample"``.
         """
         if direction not in DIRECTIONS:
-            raise ValueError(
-                f"Unknown direction {direction!r}. Choose one of {sorted(DIRECTIONS)}."
-            )
+            raise ValueError(f"Unknown direction {direction!r}. Choose one of {sorted(DIRECTIONS)}.")
+        if mode not in MODES:
+            raise ValueError(f"Unknown mode {mode!r}. Choose greedy | beam | sample.")
         _src_lang, tgt_lang = DIRECTIONS[direction]
 
-        # Source-side preprocessing must match how the training data was built
-        # (netra_nmt.textnorm + netra_nmt.khseg, see 08c_build_casenorm_dataset.py):
-        #   en2km → lowercase/NFC the English source
-        #   km2en → khmercut-segment the Khmer source
-        if direction == "en2km":
-            text = normalize_en_source(text)
-        elif direction == "km2en":
-            text = segment_km(text)
-
-        input_ids, src_mask = self._encode(text, tgt_lang)
-        bos_id, eos_id = self.config.bos_id, self.config.eos_id
+        text = normalize_en_source(text) if direction == "en2km" else segment_km(text)
+        ids = self.model.encode_text(text, tgt_lang)
 
         if mode == "greedy":
-            tokens = decoding.greedy_decode(
-                self.model, input_ids, src_mask, bos_id, eos_id, max_new_tokens
-            )
+            tokens = self.model.greedy(ids, max_new_tokens)
         elif mode == "beam":
-            tokens = decoding.beam_search(
-                self.model, input_ids, src_mask, bos_id, eos_id, max_new_tokens,
-                beam_size=beam_size, length_penalty=length_penalty,
-            )
-        elif mode == "sample":
-            tokens = decoding.sample_decode(
-                self.model, input_ids, src_mask, bos_id, eos_id, max_new_tokens,
-                temperature=temperature, top_p=top_p,
-            )
+            tokens = self.model.beam(ids, max_new_tokens, beam_size=beam_size, length_penalty=length_penalty)
         else:
-            raise ValueError(f"Unknown mode {mode!r}. Choose greedy | beam | sample.")
+            tokens = self.model.sample(ids, max_new_tokens, temperature=temperature, top_p=top_p, seed=seed)
 
-        out = self._decode(tokens)
+        out = self.model.decode_ids(tokens)
+        # Khmer targets were trained word-segmented; restore natural (spaceless) Khmer.
+        return desegment_km(out) if tgt_lang == "km" else out
 
-        # Khmer target was trained word-segmented; restore natural (spaceless) Khmer.
-        if tgt_lang == "km":
-            out = desegment_km(out)
-
-        return out
-
-    def translate_batch(
-        self,
-        texts: list[str],
-        direction: str = DEFAULT_DIRECTION,
-        **kwargs,
-    ) -> list[str]:
-        """Translate a list of strings (sequentially). Returns a list of outputs."""
+    def translate_batch(self, texts: list[str], direction: str = DEFAULT_DIRECTION, **kwargs) -> list[str]:
+        """Translate a list of strings, one after another. Returns a list of outputs."""
         return [self.translate(t, direction=direction, **kwargs) for t in texts]
 
-
-# ---------------------------------------------------------------------------
-# Module-level convenience wrapper with a lazily-built default translator.
-# ---------------------------------------------------------------------------
 
 _DEFAULT: NetraTranslator | None = None
 
 
-def translate(text: str, direction: str = DEFAULT_DIRECTION, **kwargs) -> str:
+def translate(text: str | list[str], direction: str = DEFAULT_DIRECTION, **kwargs) -> str | list[str]:
     """
-    One-shot translation using a cached default :class:`NetraTranslator`.
+    Translate one string (or a list) with a cached default :class:`NetraTranslator`.
 
-    Convenient for quick use; instantiate :class:`NetraTranslator` directly to
-    control device, repo id, or to reuse across many calls.
+        >>> from netra_nmt import translate
+        >>> translate("Hello, how are you?")                 # English -> Khmer
+        >>> translate("សួស្តី", direction="km2en")
     """
     global _DEFAULT
     if _DEFAULT is None:
         _DEFAULT = NetraTranslator()
+    if isinstance(text, list):
+        return _DEFAULT.translate_batch(text, direction=direction, **kwargs)
     return _DEFAULT.translate(text, direction=direction, **kwargs)

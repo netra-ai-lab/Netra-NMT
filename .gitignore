@@ -240,9 +240,6 @@ checkpoints_finetune/
 
 archived/
 
-tokenizer/corpus.txt
-tokenizer/*.model
-tokenizer/*.vocab
 # netra-nmt release export (weights go to Hugging Face Hub)
 export/
 
@@ -255,7 +252,6 @@ scripts/benchmark_speed*.py
 scripts/chart_speed.py
 results/benchmark_speed*.json
 
-scripts/training/
 
 test.py
 
@@ -272,3 +268,24 @@ export_rope
 
 # Training checkpoints — all variants (model weights are published to the Hugging Face Hub)
 checkpoints*/
+# ── Netra Lab layout ────────────────────────────────────────────────────────
+# Local training artefacts (weights go to Hugging Face, never to git).
+training/runs/
+training/bundles/
+training/weights/
+training/export_rope/
+training/export_diffusion/
+training/logs/
+training/.hf_cache/
+training/tokenizer/corpus.txt
+training/tokenizer/asr_*
+training/tokenizer/*.model
+training/tokenizer/*.vocab
+!training/tokenizer/spm_32k_kmseg.model
+!training/tokenizer/spm_32k_kmseg.vocab
+# Separate ASR tokenizer experiments (not part of this repo's recipe).
+training/netra_nmt_train/scripts/recipe/11_build_asr_tokenizer_corpus.py
+training/netra_nmt_train/scripts/recipe/12_train_asr_tokenizer.py
+*.onnx
+*.onnx.data
+.venv/

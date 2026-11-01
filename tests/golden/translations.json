@@ -1,0 +1,282 @@
+[
+ {
+  "id": 0,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "It has been confirmed that eight thoroughbred race horses at Randwick Racecourse in Sydney have been infected with equine influenza.",
+  "output": "វាត្រូវបានគេបញ្ជាក់ថាសេះការប្រណាំងហ្មត់ចត់ចំនួនប្រាំបីនៅ Randwick ការប្រណាំងនៅប្រទេសអៀរឡង់ត្រូវបានឆ្លងមេរោគជាមួយសមីការ IgGN ។"
+ },
+ {
+  "id": 0,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "It has been confirmed that eight thoroughbred race horses at Randwick Racecourse in Sydney have been infected with equine influenza.",
+  "output": "វាត្រូវបានគេបញ្ជាក់ថាសេះការប្រណាំងហ្មត់ចត់ចំនួនប្រាំបីនៅ Randwick Racingcourse នៅប្រទេសអៀរឡង់បានឆ្លងមេរោគជាមួយសមីការ iFlash ។"
+ },
+ {
+  "id": 0,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "គេបានបញ្ចាក់ថាសេះពូជប្រណាំងទាំង៨នៅទីលានប្រណាំងសេះរង់វីក ​ទីក្រុងស៊ីដនីបានឆ្លងរោគផ្ដាសាយធំរបស់សត្វសេះ។",
+  "output": "It was said that the eight race breed horses at the Trophystic Racing Square, Moscow, had passed the catastrous's fluctuation."
+ },
+ {
+  "id": 0,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "គេបានបញ្ចាក់ថាសេះពូជប្រណាំងទាំង៨នៅទីលានប្រណាំងសេះរង់វីក ​ទីក្រុងស៊ីដនីបានឆ្លងរោគផ្ដាសាយធំរបស់សត្វសេះ។",
+  "output": "It was said that the eight race breed horses at the Trophystic Racing Square, Moscow, had passed the fluctuation of horses."
+ },
+ {
+  "id": 1,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "Randwick has been locked down, and is expected to remain so for up to two months.",
+  "output": "Randwick ត្រូវបានចាក់សោហើយត្រូវបានគេរំពឹងថានឹងនៅតែមានរយៈពេលរហូតដល់ពីរខែ។"
+ },
+ {
+  "id": 1,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "Randwick has been locked down, and is expected to remain so for up to two months.",
+  "output": "Randwick ត្រូវបានចាក់សោហើយត្រូវបានគេរំពឹងថានឹងនៅតែមានរយៈពេលរហូតដល់ពីរខែ។"
+ },
+ {
+  "id": 1,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "រង់វីកត្រូវបិទ ហើយយ៉ាងហោចណាស់ក៏ត្រូវរក្សារហូត២ខែដែរ។",
+  "output": "The veak is closed and at least to be kept for 2 months."
+ },
+ {
+  "id": 1,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "រង់វីកត្រូវបិទ ហើយយ៉ាងហោចណាស់ក៏ត្រូវរក្សារហូត២ខែដែរ។",
+  "output": "The circuit is closed, and at least must be kept for 2 months."
+ },
+ {
+  "id": 2,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "It is expected that the virulent flu will affect the majority of the 700 horses stabled at Randwick.",
+  "output": "វាត្រូវបានគេរំពឹងថាជំងឺផ្តាសាយដ៏កាចសាហាវនឹងប៉ះពាល់ដល់ភាគច្រើននៃសេះចំនួន៧០០ដែលមានស្ថេរភាពនៅ Randwick ។"
+ },
+ {
+  "id": 2,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "It is expected that the virulent flu will affect the majority of the 700 horses stabled at Randwick.",
+  "output": "វាត្រូវបានគេរំពឹងថាជំងឺផ្តាសាយដ៏កាចសាហាវនឹងប៉ះពាល់ដល់ភាគច្រើននៃសេះ 700 ដែលមានស្ថេរភាពនៅ Randwick ។"
+ },
+ {
+  "id": 2,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "គេប៉ាន់ស្មានថានឹងមានឥទិ្ធពលរីករាលដាលភាគច្រើនដល់សេះចំនួន700ក្បាលដែលស្ថិតនៅរង់វីក។",
+  "output": "It is estimated to have most aggressive effects spread to 700 horses that are in the field of Vik."
+ },
+ {
+  "id": 2,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "គេប៉ាន់ស្មានថានឹងមានឥទិ្ធពលរីករាលដាលភាគច្រើនដល់សេះចំនួន700ក្បាលដែលស្ថិតនៅរង់វីក។",
+  "output": "It is estimated that there will be most aggressively spread to 700 horses that are located in the field of Vik."
+ },
+ {
+  "id": 3,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "NSW Minister for Primary Industries said the facility would be quarantined until 30 days after the last sign of the flu.",
+  "output": "រដ្ឋមន្ត្រីក្រសួងឧស្សាហកម្មបឋម NSW បាននិយាយថាកន្លែងនេះនឹងត្រូវដាក់ឱ្យនៅដាច់ពីគេរហូតដល់ 30 ថ្ងៃបន្ទាប់ពីសញ្ញាចុងក្រោយនៃជំងឺផ្តាសាយ។"
+ },
+ {
+  "id": 3,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "NSW Minister for Primary Industries said the facility would be quarantined until 30 days after the last sign of the flu.",
+  "output": "រដ្ឋមន្ត្រីរបស់ NSW សម្រាប់ឧស្សាហកម្មបឋមបាននិយាយថាកន្លែងនេះនឹងត្រូវបានដាក់ឱ្យនៅដាច់ដោយឡែករហូតដល់ 30 ថ្ងៃបន្ទាប់ពីសញ្ញាចុងក្រោយនៃជំងឺផ្តាសាយ។"
+ },
+ {
+  "id": 3,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "រដ្ឋមន្ត្រីញូវសោវែលទទួលបន្ទុកស្សាហកម្មចម្បងៗបានមានប្រសាសន៍ថាទីកន្លែងនេះនឹងត្រូវធ្វើចត្តាលីស័ករហូត30ថ្ងៃក្រោយពីសញ្ញាចុងក្រោយនៃជម្ងឺគ្រុនផ្ដាសាយធំ។",
+  "output": "The Minister of New Zealand, in charge of major industries, stated that the place will be to be treated for 30 days after the last sign of the fluc."
+ },
+ {
+  "id": 3,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "រដ្ឋមន្ត្រីញូវសោវែលទទួលបន្ទុកស្សាហកម្មចម្បងៗបានមានប្រសាសន៍ថាទីកន្លែងនេះនឹងត្រូវធ្វើចត្តាលីស័ករហូត30ថ្ងៃក្រោយពីសញ្ញាចុងក្រោយនៃជម្ងឺគ្រុនផ្ដាសាយធំ។",
+  "output": "The Minister of New Zealand in charge of major industries stated that this place will be made up to 30 days after the last sign of flu."
+ },
+ {
+  "id": 4,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "The cases are the first infections of race horses, despite infecting dozens of recreational horses across NSW and Queensland.",
+  "output": "ករណីនេះគឺជាការឆ្លងលើកដំបូងនៃសេះការប្រណាំងទោះបីជាឆ្លងផុតសេះកំសាន្តរាប់សិបនៅទូទាំង NSW និង Gabion ក៏ដោយ។"
+ },
+ {
+  "id": 4,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "The cases are the first infections of race horses, despite infecting dozens of recreational horses across NSW and Queensland.",
+  "output": "ករណីនេះគឺជាការឆ្លងលើកដំបូងនៃសេះការប្រណាំងទោះបីជាមានការឆ្លងសត្វសេះកំសាន្តរាប់សិបនៅទូទាំង NSW និង Gabion ក៏ដោយ។"
+ },
+ {
+  "id": 4,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "ករណីនេះគឺជាការឆ្លងកាត់លើកទី១សំរាប់សត្វសេះប្រណាំង ទោះបីឆ្លងលើសេះសម្រាប់កំសាន្តរាប់សិបក្បាលនៅអិនអេសដាប់ប័រយូនិងឃ្ខីនសាឡេនក៏ដោយ។",
+  "output": "This case is the first pass for race horse, although pass on a dozen of entertainment horses in NS, D.B.B., Yu and Queren Salen."
+ },
+ {
+  "id": 4,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "ករណីនេះគឺជាការឆ្លងកាត់លើកទី១សំរាប់សត្វសេះប្រណាំង ទោះបីឆ្លងលើសេះសម្រាប់កំសាន្តរាប់សិបក្បាលនៅអិនអេសដាប់ប័រយូនិងឃ្ខីនសាឡេនក៏ដោយ។",
+  "output": "This case is the first pass for race horse, although crosses on the horse for dozens of entertainment in NS, D.B.B., Yu and Queren Salen."
+ },
+ {
+  "id": 5,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "The flu is highly contagious but cannot be transmitted to humans.",
+  "output": "ជំងឺផ្តាសាយនេះគឺមានការឆ្លងខ្លាំងប៉ុន្តែមិនអាចបញ្ជូនទៅមនុស្សបានទេ។"
+ },
+ {
+  "id": 5,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "The flu is highly contagious but cannot be transmitted to humans.",
+  "output": "ជំងឺផ្តាសាយធំឆ្លងខ្លាំងប៉ុន្តែមិនអាចបញ្ជូនទៅមនុស្សបានទេ។"
+ },
+ {
+  "id": 5,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "មេរោគនេះងាយឆ្លង​តែមិនឆ្លងដល់មនុស្សឡើយ។",
+  "output": "This virus is easy to be infected but not infected to humans."
+ },
+ {
+  "id": 5,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "មេរោគនេះងាយឆ្លង​តែមិនឆ្លងដល់មនុស្សឡើយ។",
+  "output": "This virus is easy to be infected but not infected to humans."
+ },
+ {
+  "id": 6,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "The national racing shutdown was costing the industry tens of millions of dollars every day.",
+  "output": "ការបិទការប្រណាំងថ្នាក់ជាតិបានធ្វើឱ្យឧស្សាហកម្មនេះមានតម្លៃរាប់សិបលានដុល្លារជារៀងរាល់ថ្ងៃ ."
+ },
+ {
+  "id": 6,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "The national racing shutdown was costing the industry tens of millions of dollars every day.",
+  "output": "ការបិទការប្រណាំងថ្នាក់ជាតិបានធ្វើឱ្យឧស្សាហកម្មចំណាយប្រាក់រាប់សិបលានដុល្លារជារៀងរាល់ថ្ងៃ។"
+ },
+ {
+  "id": 6,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "ការបិទការប្រណាំងថ្នាក់ជាតិ បានធ្វើឲ្យវិស័យនេះខាតបង់រាប់លានដុល្លាក្នុងមួយថ្ងៃៗ។",
+  "output": "The closure of the national race has lost millions of dollars per day."
+ },
+ {
+  "id": 6,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "ការបិទការប្រណាំងថ្នាក់ជាតិ បានធ្វើឲ្យវិស័យនេះខាតបង់រាប់លានដុល្លាក្នុងមួយថ្ងៃៗ។",
+  "output": "The closure of the national race has caused the sector to lose millions of dollars per day."
+ },
+ {
+  "id": 7,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "Chief Executive of Racing NSW, Peter V'Landys said while racing had been disrupted since a ban on horse movements last weekend today was a \"grim, black day\" for the racing industry in NSW.",
+  "output": "ប្រធាននាយកប្រតិបត្តិនៃការប្រណាំង NSW លោក Peter V'landys បាននិយាយថាខណៈពេលដែលការប្រណាំងត្រូវបានរំខានចាប់តាំងពីការហាមឃាត់លើចលនាសេះកាលពីចុងសប្តាហ៍មុនថ្ងៃនេះគឺជា \" ប្រផេះ , ថ្ងៃខ្មៅ \" សម្រាប់ឧស្សាហកម្មការប្រណាំងនៅ NSW ។"
+ },
+ {
+  "id": 7,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "Chief Executive of Racing NSW, Peter V'Landys said while racing had been disrupted since a ban on horse movements last weekend today was a \"grim, black day\" for the racing industry in NSW.",
+  "output": "ប្រធាននាយកប្រតិបត្តិនៃការប្រណាំង NSW លោក Peter V'landys បាននិយាយថាខណៈពេលដែលការប្រណាំងត្រូវបានរំខានចាប់តាំងពីការហាមឃាត់លើចលនាសេះកាលពីចុងសប្តាហ៍មុនថ្ងៃនេះគឺជា \" ប្រផេះ , ថ្ងៃខ្មៅ \" សម្រាប់ឧស្សាហកម្មការប្រណាំងនៅ NSW ។"
+ },
+ {
+  "id": 7,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "ប្រធានទីលានប្រណាំងញូវសោវែលប៊ីតទ័រ វ៉ាឡង់ឌីលើកឡើងថាការប្រកួត ត្រូវផ្អាក់តាំងពីការហាមនូវការចរាចររបស់សត្វសេះនៅចុងសប្តាហ៍មុនគឺជា\"ធ្ងន់ធ្ងរ ថ្ងៃខ្មៅ\"សំរាប់វិស័យឧស្សាហកម្មប្រណាំងនៅញូវសោវែល។",
+  "output": "The President of New Zealand Racing Square, the Walland, mentioned that the game has been suspended since the ban on horse's traffic at the end of the previous week was \"severe Black Day\" for the field of race industry in New Zealand."
+ },
+ {
+  "id": 7,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "ប្រធានទីលានប្រណាំងញូវសោវែលប៊ីតទ័រ វ៉ាឡង់ឌីលើកឡើងថាការប្រកួត ត្រូវផ្អាក់តាំងពីការហាមនូវការចរាចររបស់សត្វសេះនៅចុងសប្តាហ៍មុនគឺជា\"ធ្ងន់ធ្ងរ ថ្ងៃខ្មៅ\"សំរាប់វិស័យឧស្សាហកម្មប្រណាំងនៅញូវសោវែល។",
+  "output": "The President of the New Zealand Racing Square, Valandi, mentioned that the game has been suspended since the ban on horse's races by the end of the previous week is a \"black day serious\" for the field of race industry in New Zealand."
+ },
+ {
+  "id": 8,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "Racing is expected to resume in all Australian states except NSW and Queensland on the weekend.",
+  "output": "ការប្រណាំងត្រូវបានគេរំពឹងថានឹងបន្តឡើងវិញនៅរដ្ឋអូស្ត្រាលីទាំងអស់លើកលែងតែ NSW និង Gaza នៅចុងសប្តាហ៍។"
+ },
+ {
+  "id": 8,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "Racing is expected to resume in all Australian states except NSW and Queensland on the weekend.",
+  "output": "ការប្រណាំងត្រូវបានគេរំពឹងថានឹងបន្តឡើងវិញនៅរដ្ឋអូស្ត្រាលីទាំងអស់លើកលែងតែ NSW និង Gaza នៅចុងសប្តាហ៍។"
+ },
+ {
+  "id": 8,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "កម្មវិធីប្រណាំងត្រូវបានរំពឹងថានឹងប្រព្រឹត្តទូទាំងរដ្ឋនៅប្រទេសអូស្រ្តាលីលើកលែងតែញូវសោវែលនិងឃ្ខីនសាឡេននៅចុងសប្តាហ៍។",
+  "output": "The race program is expected to be held throughout the state in Australia, except New Zealand and D. G.S."
+ },
+ {
+  "id": 8,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "កម្មវិធីប្រណាំងត្រូវបានរំពឹងថានឹងប្រព្រឹត្តទូទាំងរដ្ឋនៅប្រទេសអូស្រ្តាលីលើកលែងតែញូវសោវែលនិងឃ្ខីនសាឡេននៅចុងសប្តាហ៍។",
+  "output": "The race program is expected to take place throughout the state in Australia, except for New Zealand and D. S ⁇ len on weekends."
+ },
+ {
+  "id": 9,
+  "direction": "en2km",
+  "mode": "greedy",
+  "input": "While Sydney's spring racing carnival has been canceled, Melbourne's is expected to kick off this weekend with the Caufield Cup.",
+  "output": "ខណៈពេលដែលពិធីបុណ្យនិទាឃរដូវរបស់ប្រទេសអៀរឡង់ត្រូវបានលុបចោល , ទីក្រុងមែលប៊នត្រូវបានគេរំពឹងថានឹងចាប់ផ្តើមនៅចុងសប្តាហ៍នេះជាមួយនឹងពែង Caufield ។"
+ },
+ {
+  "id": 9,
+  "direction": "en2km",
+  "mode": "beam",
+  "input": "While Sydney's spring racing carnival has been canceled, Melbourne's is expected to kick off this weekend with the Caufield Cup.",
+  "output": "ខណៈពេលដែលពិធីបុណ្យនិទាឃរដូវរបស់ប្រទេសអៀរឡង់ត្រូវបានលុបចោលទីក្រុងមែលប៊នត្រូវបានគេរំពឹងថានឹងចាប់ផ្តើមនៅចុងសប្តាហ៍នេះជាមួយនឹងពែង Caufield ។"
+ },
+ {
+  "id": 9,
+  "direction": "km2en",
+  "mode": "greedy",
+  "input": "ក្នុងពេលក្បូនហែរសំរាប់ប្រណាំងរដូវផ្ការីកនៅស៊ីតនីត្រូវលប់ចោល នៅមែលប៊ិន គេពិចារណាពីបើកឡើងវិញនៅចុងសប្តាហ៍នូវកម្មវិធីពាន់រង្វាន់ ឃូហ្វៀលខាប់។",
+  "output": "During the campaign for the Spring Race in Sexy is displaced in Mexico, one considers the opening of the weekend the thousand Quofch Award program."
+ },
+ {
+  "id": 9,
+  "direction": "km2en",
+  "mode": "beam",
+  "input": "ក្នុងពេលក្បូនហែរសំរាប់ប្រណាំងរដូវផ្ការីកនៅស៊ីតនីត្រូវលប់ចោល នៅមែលប៊ិន គេពិចារណាពីបើកឡើងវិញនៅចុងសប្តាហ៍នូវកម្មវិធីពាន់រង្វាន់ ឃូហ្វៀលខាប់។",
+  "output": "During the campaign for the Spring Race in Sexy is displaced in Mexico, one considers the opening of the weekend a thousand program of the Quarter Coke."
+ }
+]

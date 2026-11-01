@@ -16,7 +16,7 @@ from pathlib import Path
 MODEL_REPO = "hf://Netra-Lab/Netra-NMT"
 # The commit of MODEL_REPO this version runs. Move it only together with a
 # package release, after uploading the new folder (docs/RELEASING.md).
-MODEL_REVISION = "main"   # TODO(release): the commit hash, set after the upload
+MODEL_REVISION = "7c650316bdd92a7039383e7108cf066cb0b9d108"   # uploaded 2026-11-01
 
 # Model key -> folder in MODEL_REPO.
 FOLDERS = {"model": "model"}

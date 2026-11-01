@@ -10,7 +10,7 @@ RUNS_DIR = TRAINING_DIR / "runs"
 HF_CACHE_DIR = TRAINING_DIR / ".hf_cache"
 
 PUBLISHED_REPO = "Netra-Lab/Netra-NMT"
-PUBLISHED_REVISION = "main"   # TODO(release): the Netra-Lab/Netra-NMT commit that holds pytorch/
+PUBLISHED_REVISION = "7c650316bdd92a7039383e7108cf066cb0b9d108"   # holds model/ and pytorch/
 PUBLISHED_CHECKPOINTS = {"published": "pytorch/"}   # a release folder (see checkpoint.py)
 
 

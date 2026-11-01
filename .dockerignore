@@ -1,0 +1,10 @@
+myenv
+.venv
+training
+results
+research
+assets
+dist
+build
+.git
+**/__pycache__

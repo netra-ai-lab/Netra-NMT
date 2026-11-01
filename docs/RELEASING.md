@@ -1,12 +1,13 @@
-<!-- From the Netra Lab kit (templates/repo), after Netra-OCR docs/RELEASING.md.
-     Adapt: drop the Docker parts if the repo has no image; fill "Facts" with measured numbers only. -->
 # Releasing Netra NMT
 
 A release is a version tag. It publishes:
 - the package `netra-nmt` to PyPI (`.github/workflows/pypi.yml`);
 - the app image `ghcr.io/netra-ai-lab/netra-nmt` for `linux/amd64` and `linux/arm64` (`.github/workflows/docker.yml`).
 
-The models live in the Hugging Face repo [Netra-Lab/Netra-NMT](https://huggingface.co/Netra-Lab/Netra-NMT).
+The model lives in the Hugging Face repo [Netra-Lab/Netra-NMT](https://huggingface.co/Netra-Lab/Netra-NMT)
+(`model/` for the package, `pytorch/` for fine-tuning), the training corpus in
+[Netra-Lab/bilingual-en-km](https://huggingface.co/datasets/Netra-Lab/bilingual-en-km), and the demo in the
+Space [Netra-Lab/Netra-NMT](https://huggingface.co/spaces/Netra-Lab/Netra-NMT) (source: `training/release/space/`).
 
 ## One-time setup
 
@@ -23,8 +24,11 @@ The models live in the Hugging Face repo [Netra-Lab/Netra-NMT](https://huggingfa
 ## Each release
 
 0. **If the models changed:**
-   - upload the model folders to `Netra-Lab/Netra-NMT` (export commands in `training/README.md`);
-   - set `MODEL_REVISION` in `netra_nmt/models.py` to that commit.
+   - export and check: `bash training/export.sh MODEL training/bundles`;
+   - upload: `python training/release/upload_model.py --model-folder training/bundles/model --pytorch RELEASE_FOLDER`
+     (log in first with `hf auth login`);
+   - set `MODEL_REVISION` in `netra_nmt/models.py` and `PUBLISHED_REVISION` in
+     `training/netra_nmt_train/hub.py` to the printed commit.
 1. **Check:** `pytest tests --slow` and `python scripts/benchmark.py --device cpu` (compare with the last release).
 2. **Bump** `version` in `pyproject.toml`, then commit and push.
 3. **Tag:**
@@ -42,14 +46,18 @@ The models live in the Hugging Face repo [Netra-Lab/Netra-NMT](https://huggingfa
 
 If the pypi workflow fails with `400 File already exists`, that version is already on PyPI. Release the next version instead of rerunning.
 
+6. **Space:** after the PyPI release, update `netra-nmt[cpu]==X.Y.Z` in `training/release/space/requirements.txt`
+   and upload the folder to the Space `Netra-Lab/Netra-NMT`.
+
 ## Facts for the product page
 
-<!-- Measured, with the machine named: download size (compressed / on disk), memory (idle / peak), speed, GPU needed, network after the pull. -->
+Measured on 2026-11-01 with a local build of `docker/Dockerfile` (linux/amd64, Intel i7-13700KF).
 
 | | |
 | :--- | :--- |
-| Download | |
-| Memory | |
-| Speed | |
+| Download | 286 MB compressed, 819 MB on disk |
+| Memory | 591 MiB idle after start, 630 MiB after a few translations |
+| Start | ready (`/health` ok) 3 s after `docker run` |
+| Speed | ~42 ms per short English sentence through the REST API (greedy) |
 | GPU | Not needed (CPU-only image) |
 | Network | None after the pull: every model is inside the image |

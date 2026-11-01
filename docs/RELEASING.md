@@ -7,7 +7,8 @@ A release is a version tag. It publishes:
 The model lives in the Hugging Face repo [Netra-Lab/Netra-NMT](https://huggingface.co/Netra-Lab/Netra-NMT)
 (`model/` for the package, `pytorch/` for fine-tuning), the training corpus in
 [Netra-Lab/bilingual-en-km](https://huggingface.co/datasets/Netra-Lab/bilingual-en-km), and the demo in the
-Space [Netra-Lab/Netra-NMT](https://huggingface.co/spaces/Netra-Lab/Netra-NMT) (source: `training/release/space/`).
+Space [Darayut/Netra-NMT](https://huggingface.co/spaces/Darayut/Netra-NMT) (source: `training/release/space/`).
+The Space is personal, not under Netra-Lab: Gradio Spaces in an organization need a paid Hugging Face plan.
 
 ## One-time setup
 
@@ -47,7 +48,7 @@ Space [Netra-Lab/Netra-NMT](https://huggingface.co/spaces/Netra-Lab/Netra-NMT) (
 If the pypi workflow fails with `400 File already exists`, that version is already on PyPI. Release the next version instead of rerunning.
 
 6. **Space:** after the PyPI release, update `netra-nmt[cpu]==X.Y.Z` in `training/release/space/requirements.txt`
-   and upload the folder to the Space `Netra-Lab/Netra-NMT`.
+   and upload the folder to the Space `Darayut/Netra-NMT`.
 
 ## Facts for the product page
 

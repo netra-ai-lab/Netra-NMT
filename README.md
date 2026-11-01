@@ -11,7 +11,7 @@
   <a href="https://github.com/netra-ai-lab/Netra-NMT/pkgs/container/netra-nmt"><b>Docker Image</b></a> |
   <a href="https://huggingface.co/Netra-Lab/Netra-NMT"><b>Model Download</b></a> |
   <a href="https://huggingface.co/datasets/Netra-Lab/bilingual-en-km"><b>Dataset Download</b></a> |
-  <a href="https://huggingface.co/spaces/Netra-Lab/Netra-NMT"><b>Inference Space</b></a>
+  <a href="https://huggingface.co/spaces/Darayut/Netra-NMT"><b>Inference Space</b></a>
 </p>
 
 <p align="center">

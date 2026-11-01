@@ -12,12 +12,15 @@ Layout follows the Netra Lab kit (Netra-OCR is the reference).
 - **2026-11-01, user:** PyPI via Trusted Publishing only; HF via the user's own `hf auth login`.
   Never use tokens pasted in chat.
 - **2026-11-01, user:** model, dataset and Space move to the `Netra-Lab` HF org
-  (`Netra-Lab/Netra-NMT`, `Netra-Lab/bilingual-en-km`, Space `Netra-Lab/Netra-NMT`).
+  (`Netra-Lab/Netra-NMT`, `Netra-Lab/bilingual-en-km`).
   The old `Darayut/*` repos stay (Netra-Translate and the website pin them).
 - **2026-11-01, user:** keep the existing README graphs (`assets/*_benchmark.png`, `model_architecture.png`).
 - `khmercut` is a core dependency: `segment_km` silently no-ops without it, and km2en then
   sees unsegmented Khmer (worse output). 0.1.0 and 0.2.0 segment all 1,018 ALT km sentences identically.
 - The Space stays Gradio (the website playground calls its `/predict`).
+- **2026-11-01, user:** the Space stays personal, `Darayut/Netra-NMT`: HF refuses Gradio Spaces in an org
+  without a Team/Enterprise plan (402). Updated to 1.0.0 (Space commit 47db183, `/predict` checked both directions).
+  Space metadata `colorFrom` only takes red/yellow/green/blue/indigo/purple/pink/gray (no orange).
 - **2026-11-01, user:** training sources owned by Darayut are re-uploaded to Netra-Lab under MIT;
   third-party sources are only linked to their original HF repos. Only Darayut/khmer-english-pairs-raw
   qualified; its `final.parquet` (a merge including third-party rows) was not copied.
@@ -62,8 +65,6 @@ Exporter: `training/netra_nmt_train/scripts/export.py` (wrappers in `onnx_graphs
 
 ## Pending
 
-- Space `Netra-Lab/Netra-NMT`: `training/release/space/` tested locally against the PyPI build
-  (`/predict` ok both directions). Not created: the local `hf` login has no write access to Netra-Lab (403).
 - Make the GHCR package public (GitHub → netra-ai-lab → Packages → netra-nmt).
 - Netra-Translate can move from the git pin to `netra-nmt>=1.0` (its models.py imports
   `netra_nmt.config.HF_REPO_ID`, which no longer exists: use `netra-nmt download`).

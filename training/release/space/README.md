@@ -1,7 +1,7 @@
 ---
 title: Netra NMT
 emoji: 👁️
-colorFrom: orange
+colorFrom: red
 colorTo: yellow
 sdk: gradio
 sdk_version: 6.22.0

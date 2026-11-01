@@ -1,0 +1,19 @@
+"""Download Netra NMT's models into /models/netra-nmt (NETRA_NMT_BUNDLES).
+
+Run at image build time so the container works offline. The folder has one
+subfolder per model (see netra_nmt/models.py), with only the graphs the CPU
+runs (no fp16 copies).
+"""
+
+import shutil
+import sys
+from pathlib import Path
+
+from netra_nmt.inference import hub
+from netra_nmt.models import FOLDERS, MODEL_REPO, MODEL_REVISION
+
+target = Path(sys.argv[1] if len(sys.argv) > 1 else "/models/netra-nmt")
+for folder in FOLDERS.values():
+    # Copied out of the Hugging Face cache, whose files are symlinks to blobs.
+    shutil.copytree(hub.fetch(f"{MODEL_REPO}/{folder}@{MODEL_REVISION}", "cpu"), target / folder)
+    print(target / folder)

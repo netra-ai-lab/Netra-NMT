@@ -1,0 +1,50 @@
+# Fast tests on every push and pull request (no models needed).
+#
+# A manual run (Actions → tests → Run workflow) can also run the slow tests,
+# which download the real model and check its translations of 10 ALT
+# sentences (both directions, greedy and beam) against tests/golden/.
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      slow:
+        description: "Also run the real-model tests (pytest --slow)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install ".[cpu,server]" pytest httpx
+
+      - name: Cache the models
+        if: inputs.slow
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('netra_nmt/models.py') }}
+
+      - name: Test
+        run: pytest tests -q ${{ inputs.slow && '--slow' || '' }}
+        env:
+          NETRA_NMT_DEVICE: cpu
+
+      - name: Check the package stays small (no model files)
+        run: pip install build && python -m build && python scripts/check_dist.py
+

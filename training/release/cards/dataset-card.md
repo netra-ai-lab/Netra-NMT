@@ -88,7 +88,7 @@ This corpus is a combination of the following four datasets. Please cite the ori
 sources if you use this data, and consult each source for its own licensing terms.
 
 - [lyfeyvutha/nllb-en-km-316K](https://huggingface.co/datasets/lyfeyvutha/nllb-en-km-316K)
-- [Darayut/khmer-english-pairs-raw](https://huggingface.co/datasets/Darayut/khmer-english-pairs-raw)
+- [Netra-Lab/khmer-english-pairs-raw](https://huggingface.co/datasets/Netra-Lab/khmer-english-pairs-raw) (MIT)
 - [KrorngAI/ParaCrawl-English-Khmer-v2](https://huggingface.co/datasets/KrorngAI/ParaCrawl-English-Khmer-v2)
 - [SeyhaLite/Translate-English-Khmer-All](https://huggingface.co/datasets/SeyhaLite/Translate-English-Khmer-All)
 
@@ -109,7 +109,7 @@ If you use this dataset, please cite this repository along with the four source 
   author       = {Nhem Darayut},
   year         = {2026},
   howpublished = {\url{https://huggingface.co/datasets/Netra-Lab/bilingual-en-km}},
-  note         = {Combined from lyfeyvutha/nllb-en-km-316K, Darayut/khmer-english-pairs-raw,
+  note         = {Combined from lyfeyvutha/nllb-en-km-316K, Netra-Lab/khmer-english-pairs-raw,
                   KrorngAI/ParaCrawl-English-Khmer-v2, and SeyhaLite/Translate-English-Khmer-All}
 }
 ```

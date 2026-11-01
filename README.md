@@ -60,7 +60,7 @@ Netra NMT was trained on **220 million tokens** from about **2.4 million unique 
 
 | Dataset | Type | Pairs | Domains |
 | :--- | :--- | ---: | :--- |
-| [Darayut/khmer-english-pairs-raw](https://huggingface.co/datasets/Darayut/khmer-english-pairs-raw) | Synthetic | 200K | Legal, literary, governmental |
+| [Netra-Lab/khmer-english-pairs-raw](https://huggingface.co/datasets/Netra-Lab/khmer-english-pairs-raw) (MIT) | Synthetic | 200K | Legal, literary, governmental |
 | [lyfeyvutha/nllb-en-km-316K](https://huggingface.co/datasets/lyfeyvutha/nllb-en-km-316K) | Synthetic | 316K | General |
 | [KrorngAI/ParaCrawl-English-Khmer-v2](https://huggingface.co/datasets/KrorngAI/ParaCrawl-English-Khmer-v2) | Web crawl (ParaCrawl) | 1.5M | Web, general |
 | [SeyhaLite/Translate-English-Khmer-All](https://huggingface.co/datasets/SeyhaLite/Translate-English-Khmer-All) | — | 366K | General |
@@ -244,7 +244,7 @@ bash training/export.sh training/runs/my-model/checkpoints/best/checkpoint.pt   
 This project is released under the MIT License (see [LICENSE](LICENSE)).
 - **Weights:** MIT, like the code.
 - **Libraries:** SentencePiece and khmercut are Apache-2.0; ONNX Runtime is MIT. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
-- **Training data:** each source keeps its own terms: SeyhaLite/Translate-English-Khmer-All is Apache-2.0, and the combined [Netra-Lab/bilingual-en-km](https://huggingface.co/datasets/Netra-Lab/bilingual-en-km) passes the sources' terms on (only its card is CC BY 4.0). <!-- TODO: licences of Darayut/khmer-english-pairs-raw, lyfeyvutha/nllb-en-km-316K and KrorngAI/ParaCrawl-English-Khmer-v2 (their cards state none) --> Check the source datasets' terms before commercial use.
+- **Training data:** [Netra-Lab/khmer-english-pairs-raw](https://huggingface.co/datasets/Netra-Lab/khmer-english-pairs-raw) is MIT. The other three sources are third-party and keep the terms of their original repos: [lyfeyvutha/nllb-en-km-316K](https://huggingface.co/datasets/lyfeyvutha/nllb-en-km-316K), [KrorngAI/ParaCrawl-English-Khmer-v2](https://huggingface.co/datasets/KrorngAI/ParaCrawl-English-Khmer-v2) and [SeyhaLite/Translate-English-Khmer-All](https://huggingface.co/datasets/SeyhaLite/Translate-English-Khmer-All) (Apache-2.0). The combined [Netra-Lab/bilingual-en-km](https://huggingface.co/datasets/Netra-Lab/bilingual-en-km) passes those terms on. Check them before commercial use.
 - **Example data:** `training/examples/pairs.tsv` is 50 ALT validation pairs, CC BY 4.0 (NICT).
 
 ## References

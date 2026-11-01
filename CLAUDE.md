@@ -18,6 +18,9 @@ Layout follows the Netra Lab kit (Netra-OCR is the reference).
 - `khmercut` is a core dependency: `segment_km` silently no-ops without it, and km2en then
   sees unsegmented Khmer (worse output). 0.1.0 and 0.2.0 segment all 1,018 ALT km sentences identically.
 - The Space stays Gradio (the website playground calls its `/predict`).
+- **2026-11-01, user:** training sources owned by Darayut are re-uploaded to Netra-Lab under MIT;
+  third-party sources are only linked to their original HF repos. Only Darayut/khmer-english-pairs-raw
+  qualified; its `final.parquet` (a merge including third-party rows) was not copied.
 
 ## Model folder (`model/` on HF)
 
@@ -36,7 +39,8 @@ Exporter: `training/netra_nmt_train/scripts/export.py` (wrappers in `onnx_graphs
 - **Speed, i7-13700KF, 20 sentences, median ms/sent:** torch 0.1.0 greedy 62.6 / beam 701.1;
   ONNX 1.0.0 greedy 39.1 / beam 63.5. GPU (onnxruntime-gpu) not measured.
 - **Size:** wheel 0.05 MB; `[cpu]` install 199 MB; model download 181 MB (HF cache).
-- **HF:** model Netra-Lab/Netra-NMT@7c65031 (pinned); dataset Netra-Lab/bilingual-en-km@f0d82d5.
+- **HF:** model Netra-Lab/Netra-NMT@7c65031 (pinned); dataset Netra-Lab/bilingual-en-km@f0d82d5;
+  Netra-Lab/khmer-english-pairs-raw@67954ce (MIT, data/ only).
 
 ## Pitfalls
 
@@ -54,7 +58,5 @@ Exporter: `training/netra_nmt_train/scripts/export.py` (wrappers in `onnx_graphs
 
 - PyPI: user adds the Trusted Publisher (owner netra-ai-lab, repo Netra-NMT, workflow pypi.yml,
   env pypi), then tag v1.0.0. Then create the Space (needs netra-nmt 1.0.0 on PyPI).
-- Licences of Darayut/khmer-english-pairs-raw, lyfeyvutha/nllb-en-km-316K,
-  KrorngAI/ParaCrawl-English-Khmer-v2 (cards state none): TODO in README §8 and THIRD_PARTY_LICENSES.md.
 - Netra-Translate can move from the git pin to `netra-nmt>=1.0` (its models.py imports
   `netra_nmt.config.HF_REPO_ID`, which no longer exists: use `netra-nmt download`).

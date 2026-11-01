@@ -24,5 +24,5 @@ redistributes parts of, the following.
 
 ## Data
 
-- **Training data:** the four sources listed in the README (§2). Each keeps its own terms; `SeyhaLite/Translate-English-Khmer-All` is Apache-2.0. <!-- TODO: licences of Darayut/khmer-english-pairs-raw, lyfeyvutha/nllb-en-km-316K and KrorngAI/ParaCrawl-English-Khmer-v2 (their cards state none) -->
+- **Training data:** [Netra-Lab/khmer-english-pairs-raw](https://huggingface.co/datasets/Netra-Lab/khmer-english-pairs-raw) is MIT (Netra Lab's own synthetic pairs). The other sources are third-party and keep the terms of their original repos: [lyfeyvutha/nllb-en-km-316K](https://huggingface.co/datasets/lyfeyvutha/nllb-en-km-316K), [KrorngAI/ParaCrawl-English-Khmer-v2](https://huggingface.co/datasets/KrorngAI/ParaCrawl-English-Khmer-v2), [SeyhaLite/Translate-English-Khmer-All](https://huggingface.co/datasets/SeyhaLite/Translate-English-Khmer-All) (Apache-2.0).
 - **Evaluation data and `training/examples/pairs.tsv`:** the Asian Language Treebank ([mutiyama/alt](https://huggingface.co/datasets/mutiyama/alt), NICT), CC BY 4.0.

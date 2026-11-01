@@ -96,8 +96,12 @@ class NMTModel:
         return out
 
     def beam(self, ids: list[int], max_new_tokens: int = 128, beam_size: int = 5,
-             length_penalty: float = 0.6) -> list[int]:
-        """Beam search, GNMT length penalty ``((5 + len) / 6) ** length_penalty``."""
+             length_penalty: float = 0.6, early_stop: bool = True) -> list[int]:
+        """Beam search, GNMT length penalty ``((5 + len) / 6) ** length_penalty``.
+
+        Stops as soon as no live beam can beat the best finished hypothesis, which
+        gives exactly the result of running all ``max_new_tokens`` steps.
+        """
         cross_k, cross_v, cross_mask = self._encode(ids, keep=False)
         cross_k = np.repeat(cross_k, beam_size, axis=1)
         cross_v = np.repeat(cross_v, beam_size, axis=1)
@@ -112,6 +116,8 @@ class NMTModel:
 
         def norm(score: float, length: int) -> float:
             return score / (((5 + length) / 6) ** length_penalty)
+
+        max_len = 1 + max_new_tokens                      # BOS + every new token
 
         for _ in range(max_new_tokens):
             logits, past_k, past_v = self._step(step_ids, past_k, past_v, cross_k, cross_v, cross_mask, False)
@@ -132,6 +138,12 @@ class NMTModel:
                     finished.append((norm(float(scores[b]), seqs.shape[1]), seqs[b].tolist()))
                     scores[b] = -np.inf
             if scores.max() == -np.inf:
+                break
+            # Exact early stop: a live beam's score only falls (log-probs <= 0), so
+            # the best it can still reach is score / penalty(longest length). Once
+            # the best finished hypothesis beats that for every beam, nothing that
+            # follows can win (and max() below keeps the first of equal scores).
+            if early_stop and finished and max(c[0] for c in finished) >= norm(float(scores.max()), max_len):
                 break
 
         for b in range(beam_size):                        # beams still running at the cap

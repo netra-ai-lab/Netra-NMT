@@ -50,7 +50,7 @@ This repository presents Netra NMT, a compact **77M-parameter** encoder-decoder 
 
 On the ALT test set (1,018 pairs, greedy) it scores **25.83 spBLEU English→Khmer**, against 18.89 for NLLB-350M (EN-KM), 16.62 for NLLB-200 1.3B and 28.93 for Google Translate. Khmer→English is weaker: **19.47 spBLEU**, against 35.15 for NLLB-200 1.3B. On CPU it translates a sentence in **65.6 ms** greedy, 8× faster than NLLB-350M.
 
-The package runs the model on ONNX Runtime: `pip install "netra-nmt[cpu]"`, no PyTorch, and a 189 MB model download.
+The package runs the model on ONNX Runtime: `pip install "netra-nmt[cpu]"` (199 MB installed, no PyTorch) and a 189 MB model download, at 39 ms per sentence greedy and 64 ms beam-5 on a desktop CPU.
 
 ## 2. Dataset
 
@@ -132,8 +132,9 @@ Each surviving pair is then used in both directions with a target-language marke
 - **English → Khmer** is the strong direction: the best TER of all systems, and the best spBLEU and chrF++ after Google Translate, ahead of models 4–40× larger. On the neural metrics (COMET, BERTScore) NLLB-200 1.3B and MADLAD-400 3B are slightly ahead.
 - **Khmer → English** trails NLLB-200 600M, 1.3B and MADLAD-400 3B by 11.8–16.7 spBLEU.
 - **Speed.** On CPU, 65.6 ms per sentence greedy against 550.8 for NLLB-350M and 1074.9 for NLLB-600M; beam-5 735.2 against 802.7 and 1567.5 (the figure above; [`results/speed_hw.json`](results/speed_hw.json)).
+- **The package is faster than the figure.** netra-nmt 1.0.0 (ONNX Runtime) takes 39.1 ms per sentence greedy and 63.5 ms beam-5 on the same CPU, against 62.6 and 701.1 for the PyTorch 0.1.0 package; beam search now stops as soon as no beam can still win, with identical output.
 - **The package matches the evaluated model.** The ONNX model folder the package runs generates the same tokens as the PyTorch model on the ALT test set, greedy and beam-5, both directions ([docs/RESULTS.md](docs/RESULTS.md)).
-- **More results.** [docs/RESULTS.md](docs/RESULTS.md): the speed tables, ONNX Runtime speed, and the parity check.
+- **More results.** [docs/RESULTS.md](docs/RESULTS.md): the speed tables, ONNX Runtime against PyTorch, and the parity check.
 
 ## 5. Install
 

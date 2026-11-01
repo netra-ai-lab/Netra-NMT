@@ -56,3 +56,11 @@ def test_sample_is_seeded_and_ends_at_eos():
     a = m.sample([7], seed=0, top_p=0.5)
     assert a == m.sample([7], seed=0, top_p=0.5)
     assert a == [BOS, 4, 5, EOS]   # top-p 0.5 keeps only the peak token each step
+
+
+def test_beam_early_stop_matches_full_search():
+    rng = np.random.default_rng(0)
+    for _ in range(20):
+        table = rng.normal(0, 2, size=(12, V)).astype(np.float32)
+        m = FakeModel(table)
+        assert m.beam([7], max_new_tokens=10, beam_size=3) == m.beam([7], max_new_tokens=10, beam_size=3, early_stop=False)

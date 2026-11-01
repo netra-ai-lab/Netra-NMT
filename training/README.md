@@ -134,4 +134,23 @@ It writes the model folder (`encoder.onnx`, `decoder_step.onnx`, `spm_32k.model`
 `netra-model.json`; see [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)), then runs it through
 the package on the ALT test set and compares the generated tokens with PyTorch, greedy and
 beam-5, both directions. It fails below 99% identical. `LIMIT=50` checks fewer pairs,
-`CHECK=` skips the check. <!-- PARITY_OUTPUT -->
+`CHECK=` skips the check. Output for the released model (CPU):
+
+```
+$ bash training/export.sh training/export_rope training/bundles
+  encoder.onnx: 271.8 -> 136.2 MB
+  decoder_step.onnx: 103.5 -> 51.8 MB
+en2km greedy: identical tokens on 1018/1018 (100.0%)  torch 107.9s, onnx 98.6s
+en2km beam  : identical tokens on 1018/1018 (100.0%)  torch 839.5s, onnx 736.7s
+km2en greedy: identical tokens on 1018/1018 (100.0%)  torch 116.6s, onnx 111.5s
+km2en beam  : identical tokens on 1018/1018 (100.0%)  torch 488.3s, onnx 651.7s
+Parity OK
+```
+
+(That run predates the beam early stop; with it, beam takes about a quarter of the time on both sides.)
+
+## 7. Release
+
+`python training/release/upload_model.py --model-folder training/bundles/model --pytorch training/export_rope`
+uploads `model/`, `pytorch/`, the card and its figures to `Netra-Lab/Netra-NMT` and prints the commit
+to pin in `netra_nmt/models.py`. The full checklist is in [docs/RELEASING.md](../docs/RELEASING.md).

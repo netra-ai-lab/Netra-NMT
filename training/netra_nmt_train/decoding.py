@@ -100,6 +100,10 @@ def beam_search(
 
         if beam_scores.max().item() == float("-inf"):
             break
+        # Exact early stop (same rule as netra_nmt.inference.nmt): live scores only
+        # fall, so their best reachable normalised score is score / penalty(max length).
+        if finished and max(c[0] for c in finished) >= _norm(beam_scores.max().item(), 1 + max_new_tokens):
+            break
 
     # Fold in any beams still running at the length cap.
     for b in range(beam_size):

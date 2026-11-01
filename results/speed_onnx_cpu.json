@@ -1,0 +1,13 @@
+{
+  "model": "Netra-NMT-77M (ONNX)",
+  "device": "cpu",
+  "threads": null,
+  "cpu": "x86_64",
+  "load_ms": 410,
+  "encoder_ms": 6.56,
+  "decoder_step_ms": 2.49,
+  "greedy_tok_s": 518.1,
+  "greedy_ms_sent": 39.1,
+  "beam_tok_s": 303.6,
+  "beam_ms_sent": 63.5
+}

@@ -26,14 +26,17 @@ Layout follows the Netra Lab kit (Netra-OCR is the reference).
 weights stored fp16 (released weights were fp16 already → lossless). RoPE position = cache length.
 Exporter: `training/netra_nmt_train/scripts/export.py` (wrappers in `onnx_graphs.py`).
 
-## Measured
+## Measured (details: docs/RESULTS.md)
 
-- **Parity, 2026-11-01:** `export.py --check alt` (export_rope = live HF weights, sha256 e202b349…),
-  CPU, identical generated tokens torch vs ONNX: see docs/RESULTS.md (50-pair quick check: 100% in
-  all four of en2km/km2en × greedy/beam-5).
-- **Old torch package (main@83dd5b9) vs new package:** 40/40 identical texts on tests/golden.
-- **Wheel:** 0.05 MB (was ~1 MB with the bundled tokenizer). Model download 189 MB.
-- Speed: docs/RESULTS.md (ONNX vs PyTorch, same machine i7-13700KF).
+- **Parity, 2026-11-01:** `export.py --check alt`, CPU, torch vs ONNX generated tokens:
+  1018/1018 identical in en2km/km2en × greedy/beam-5 (training/runs/export_parity.log).
+- **Old torch package (main@83dd5b9) vs 1.0.0:** 40/40 identical texts on tests/golden.
+- **Beam early stop** (exact bound score / lp(1+max_new_tokens)): identical to full-length beam on
+  1018/1018 both directions; 704 → 193 s (en2km), 648 → 241 s (km2en) on ALT.
+- **Speed, i7-13700KF, 20 sentences, median ms/sent:** torch 0.1.0 greedy 62.6 / beam 701.1;
+  ONNX 1.0.0 greedy 39.1 / beam 63.5. GPU (onnxruntime-gpu) not measured.
+- **Size:** wheel 0.05 MB; `[cpu]` install 199 MB; model download 181 MB (HF cache).
+- **HF:** model Netra-Lab/Netra-NMT@7c65031 (pinned); dataset Netra-Lab/bilingual-en-km@f0d82d5.
 
 ## Pitfalls
 
@@ -49,8 +52,6 @@ Exporter: `training/netra_nmt_train/scripts/export.py` (wrappers in `onnx_graphs
 
 ## Pending
 
-- Upload to HF (user logs in), pin `MODEL_REVISION` (`netra_nmt/models.py`) and
-  `PUBLISHED_REVISION` (`training/netra_nmt_train/hub.py`) to the returned commit.
 - PyPI: user adds the Trusted Publisher (owner netra-ai-lab, repo Netra-NMT, workflow pypi.yml,
   env pypi), then tag v1.0.0. Then create the Space (needs netra-nmt 1.0.0 on PyPI).
 - Licences of Darayut/khmer-english-pairs-raw, lyfeyvutha/nllb-en-km-316K,

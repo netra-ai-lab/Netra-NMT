@@ -54,9 +54,16 @@ Exporter: `training/netra_nmt_train/scripts/export.py` (wrappers in `onnx_graphs
 - Python stdout to a file is block-buffered: `until grep ... log` waits for the whole run. Use `python -u`.
 - `pip install onnx onnxruntime` into myenv upgraded numpy/protobuf past unbabel-comet's pins.
 
+## Released
+
+- **1.0.0, 2026-11-01:** tag v1.0.0 (main@2cd6530). PyPI via Trusted Publishing; GHCR image
+  `ghcr.io/netra-ai-lab/netra-nmt:1.0.0` (amd64 + arm64). Checked: clean-venv `pip install "netra-nmt[cpu]==1.0.0"`
+  translates both directions without torch; the image answers `/api/translate`.
+
 ## Pending
 
-- PyPI: user adds the Trusted Publisher (owner netra-ai-lab, repo Netra-NMT, workflow pypi.yml,
-  env pypi), then tag v1.0.0. Then create the Space (needs netra-nmt 1.0.0 on PyPI).
+- Space `Netra-Lab/Netra-NMT`: `training/release/space/` tested locally against the PyPI build
+  (`/predict` ok both directions). Not created: the local `hf` login has no write access to Netra-Lab (403).
+- Make the GHCR package public (GitHub → netra-ai-lab → Packages → netra-nmt).
 - Netra-Translate can move from the git pin to `netra-nmt>=1.0` (its models.py imports
   `netra_nmt.config.HF_REPO_ID`, which no longer exists: use `netra-nmt download`).

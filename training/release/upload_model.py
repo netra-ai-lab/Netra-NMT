@@ -21,7 +21,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CARD = Path(__file__).parent / "cards" / "model-card.md"
-CARD_ASSETS = ["speed_benchmark.png", "metrics_benchmark.png", "model_architecture.png"]
+CARD_ASSETS = ["header.png", "speed_benchmark.png", "metrics_benchmark.png", "model_architecture.png"]
 
 
 def main():

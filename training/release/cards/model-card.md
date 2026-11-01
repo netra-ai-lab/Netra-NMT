@@ -15,6 +15,20 @@ datasets:
 - Netra-Lab/bilingual-en-km
 ---
 
+<p align="center">
+  <img src="https://huggingface.co/Netra-Lab/Netra-NMT/resolve/main/assets/header.png" width="260" alt="Netra Lab" />
+</p>
+
+<hr>
+
+<p align="center">
+  <a href="https://github.com/netra-ai-lab/Netra-NMT"><b>GitHub</b></a> |
+  <a href="https://pypi.org/project/netra-nmt/"><b>PyPI</b></a> |
+  <a href="https://huggingface.co/spaces/Darayut/Netra-NMT"><b>Demo</b></a> |
+  <a href="https://huggingface.co/datasets/Netra-Lab/bilingual-en-km"><b>Training data</b></a> |
+  <a href="https://huggingface.co/Netra-Lab/Netra-NMT/tree/main/pytorch"><b>PyTorch weights</b></a>
+</p>
+
 # Netra NMT
 
 A **77M-parameter** English↔Khmer translation model: one encoder-decoder transformer for both directions, trained from scratch on 220 million tokens of parallel text. It runs on ONNX Runtime with the `netra-nmt` package, on a CPU, without PyTorch.

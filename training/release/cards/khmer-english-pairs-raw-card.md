@@ -33,6 +33,19 @@ configs:
     path: data/train-*
 ---
 
+<p align="center">
+  <img src="https://huggingface.co/datasets/Netra-Lab/khmer-english-pairs-raw/resolve/main/assets/header.png" width="260" alt="Netra Lab" />
+</p>
+
+<hr>
+
+<p align="center">
+  <a href="https://github.com/netra-ai-lab/Netra-NMT"><b>GitHub</b></a> |
+  <a href="https://huggingface.co/Netra-Lab/Netra-NMT"><b>Model</b></a> |
+  <a href="https://huggingface.co/datasets/Netra-Lab/bilingual-en-km"><b>Combined corpus</b></a> |
+  <a href="https://huggingface.co/spaces/Darayut/Netra-NMT"><b>Demo</b></a>
+</p>
+
 # Khmer-English Pairs (raw)
 
 200,000 Khmer-English sentence pairs, LLM-generated synthetic data in legal, literary and

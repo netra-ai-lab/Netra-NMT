@@ -24,18 +24,6 @@ configs:
         path: data/validation-*.parquet
 ---
 
-<p align="center">
-  <img src="https://huggingface.co/datasets/Netra-Lab/bilingual-en-km/resolve/main/assets/header.png" width="260" alt="Netra Lab" />
-</p>
-
-<hr>
-
-<p align="center">
-  <a href="https://github.com/netra-ai-lab/Netra-NMT"><b>GitHub</b></a> |
-  <a href="https://huggingface.co/Netra-Lab/Netra-NMT"><b>Model</b></a> |
-  <a href="https://huggingface.co/spaces/Darayut/Netra-NMT"><b>Demo</b></a>
-</p>
-
 # Bilingual English–Khmer Parallel Corpus
 
 4,257,178 English↔Khmer translation examples, in both directions: the training corpus of

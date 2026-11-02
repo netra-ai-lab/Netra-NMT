@@ -18,6 +18,8 @@ Layout follows the Netra Lab kit (Netra-OCR is the reference).
 - `khmercut` is a core dependency: `segment_km` silently no-ops without it, and km2en then
   sees unsegmented Khmer (worse output). 0.1.0 and 0.2.0 segment all 1,018 ALT km sentences identically.
 - The Space stays Gradio (the website playground calls its `/predict`).
+- **2026-11-02, user:** HF cards: only the model card has the Netra header (`assets/header.png`, same as
+  Netra-OCR's card) and link bar. Dataset cards start with the title: no logo, wordmark or links.
 - **2026-11-01, user:** the Space stays personal, `Darayut/Netra-NMT`: HF refuses Gradio Spaces in an org
   without a Team/Enterprise plan (402). Updated to 1.0.0 (Space commit 47db183, `/predict` checked both directions).
   Space metadata `colorFrom` only takes red/yellow/green/blue/indigo/purple/pink/gray (no orange).

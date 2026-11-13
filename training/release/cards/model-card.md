@@ -61,7 +61,7 @@ ALT test split (`mutiyama/alt`, 1,018 pairs), greedy decoding; spBLEU with the F
 
 ## Architecture
 
-<p align="center"><img src="https://huggingface.co/Netra-Lab/Netra-NMT/resolve/main/assets/model_architecture.png" width="70%" alt="Encoder-decoder architecture"></p>
+<p align="center"><img src="https://huggingface.co/Netra-Lab/Netra-NMT/resolve/main/assets/model_architecture.png" width="100%" alt="Netra-NMT translating I love my country into Khmer: a 12-layer encoder and a 2-layer decoder, one layer of each opened up"></p>
 
 - **Shape:** 12 encoder layers, 2 decoder layers (deep encoder, shallow decoder), d_model 512, 8 heads, FFN 2048, vocabulary 32K.
 - **Components:** rotary position embeddings, RMSNorm (pre-norm), SwiGLU, one embedding table shared by the encoder, the decoder and the tied output head, a KV cache.

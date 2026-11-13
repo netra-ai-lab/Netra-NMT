@@ -79,10 +79,10 @@ Each surviving pair is then used in both directions with a target-language marke
 ## 3. Model Architecture
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/model_architecture.png" width="70%" alt="Netra NMT encoder-decoder architecture" />
+  <img src="https://raw.githubusercontent.com/netra-ai-lab/Netra-NMT/main/assets/model_architecture.png" width="100%" alt="Netra-NMT translating I love my country into Khmer: a 12-layer encoder and a 2-layer decoder, one layer of each opened up" />
 </p>
 
-<p><em>Figure 1: The encoder (left) reads the source sentence with bidirectional self-attention; the decoder (right) generates the target sentence one token at a time with causal self-attention and cross-attention over the encoder output. Both sides share a 32K SentencePiece tokenizer.</em></p>
+<p><em>Figure 1: Netra-NMT translating “I love my country” into Khmer, with one encoder layer and one decoder layer opened up. Every sub-layer is pre-norm: RMSNorm, the sub-layer, then the input added back (⊕). The encoder (left, read upwards) uses bidirectional self-attention with RoPE and a SwiGLU feed-forward block; the decoder (right, read downwards) uses causal self-attention with a KV cache, cross-attention over the encoder states, and SwiGLU. One 32,000 × 512 embedding table serves the encoder input, the decoder input and the output layer. The probabilities are the model's own at decoding step 4.</em></p>
 
 **Encoder.** The source sentence, tokenized by the shared 32K SentencePiece model (Khmer word-segmented first), goes through **12** transformer layers with bidirectional self-attention. Positions are encoded by rotating queries and keys (RoPE) inside self-attention; there is no learned position table. A final RMSNorm feeds the decoder's cross-attention.
 
